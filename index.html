@@ -169,18 +169,18 @@ const ZDEF={
    6 slime(hazard) 7 steam vent(hazard) 8 fire barrel(light) 9 campfire(light)
    10 mannequin 11 gurney 12 crate stack 13 hanging sign 14 machine 15 bush */
 const BIOMES=[
- {name:'CITY BLOCKS',     wa:'#242836',wb:'#20232e',fs:'#3a3f4e',fd:'#2b2f3b',ext:'#131017',pipe:'#31364a',win:'city',amb:'dust',   props:[0,1,4,5,3]},
- {name:'THE SEWERS',      wa:'#1e2b24',wb:'#18241e',fs:'#2e3b33',fd:'#222c27',ext:'#0d1410',pipe:'#2c4438',win:'none',amb:'drip',   props:[1,6,3,6,0]},
- {name:'SUBWAY TUNNELS',  wa:'#2a2622',wb:'#241f1c',fs:'#3d3833',fd:'#2b2724',ext:'#120f0d',pipe:'#3d3225',win:'none',amb:'dust',   props:[13,5,1,0,3]},
- {name:'ST. MERCY HOSPITAL',wa:'#2c343a',wb:'#28303a',fs:'#414b55',fd:'#303842',ext:'#11151a',pipe:'#3c4854',win:'none',amb:'dust', props:[11,4,5,11,0]},
- {name:'CRESTVIEW MALL',  wa:'#332d3a',wb:'#2c2733',fs:'#453e50',fd:'#332e3c',ext:'#151118',pipe:'#443a52',win:'glow',amb:'dust',   props:[10,5,0,4,10]},
- {name:'THE IRONWORKS',   wa:'#33291f',wb:'#2c231b',fs:'#473a2c',fd:'#33291f',ext:'#140f0a',pipe:'#4d3a24',win:'none',amb:'ember',  props:[14,7,1,8,3]},
- {name:'HARBOR DOCKS',    wa:'#22303a',wb:'#1d2933',fs:'#39434e',fd:'#2a323a',ext:'#0e141a',pipe:'#31434f',win:'city',amb:'dust',   props:[12,0,1,2,12]},
- {name:'PINE HOLLOW CAMP',wa:'#1c2b1e',wb:'#172518',fs:'#3a3226',fd:'#2a2419',ext:'#0c120c',pipe:'#243a26',win:'hole',amb:'firefly',props:[9,15,2,0,15],trees:1},
- {name:'FORT ASHER',      wa:'#2b2f22',wb:'#252a1e',fs:'#3f4433',fd:'#2e3226',ext:'#101207',pipe:'#3a4030',win:'none',amb:'dust',   props:[2,0,3,8,4]},
- {name:'THE WASTES',      wa:'#3a2f22',wb:'#332a1e',fs:'#4d3f2c',fd:'#382e20',ext:'#160f08',pipe:'#4d3d28',win:'hole',amb:'ash',    props:[8,1,5,2,0]}];
-function biomeFor(n){return BIOMES[Math.floor((n-1)/3)%BIOMES.length];}
-function biomeIdx(n){return Math.floor((n-1)/3)%BIOMES.length;}
+ {name:'CITY BLOCKS',     wa:'#262b3d',wb:'#20242f',fs:'#3d4356',fd:'#2b2f3b',ext:'#131017',pipe:'#31364a',win:'city',amb:'dust',   props:[0,1,4,5,3], lampC:'#ffe9a8',tint:'rgba(70,90,140,0.08)', dark:.55},
+ {name:'THE SEWERS',      wa:'#1d332a',wb:'#172a21',fs:'#2e463a',fd:'#22332b',ext:'#0d1410',pipe:'#2c4438',win:'none',amb:'drip',   props:[1,6,3,6,0], lampC:'#a8ffc0',tint:'rgba(60,170,95,0.13)', dark:.50},
+ {name:'SUBWAY TUNNELS',  wa:'#332c22',wb:'#2b241c',fs:'#4a4133',fd:'#332d24',ext:'#120f0d',pipe:'#4d3f28',win:'none',amb:'dust',   props:[13,5,1,0,3],lampC:'#ffd98a',tint:'rgba(210,165,80,0.10)',dark:.50},
+ {name:'ST. MERCY HOSPITAL',wa:'#37424c',wb:'#303a46',fs:'#4d5a66',fd:'#38424e',ext:'#11151a',pipe:'#46545f',win:'none',amb:'dust', props:[11,4,5,11,0],lampC:'#e8f6ff',tint:'rgba(160,220,255,0.12)',dark:.42},
+ {name:'CRESTVIEW MALL',  wa:'#3d3247',wb:'#332a3d',fs:'#53455f',fd:'#3d3448',ext:'#151118',pipe:'#4f4260',win:'glow',amb:'dust',   props:[10,5,0,4,10],lampC:'#ffc8e8',tint:'rgba(255,140,220,0.10)',dark:.45},
+ {name:'THE IRONWORKS',   wa:'#3d2d1e',wb:'#332517',fs:'#54422c',fd:'#3d2f1f',ext:'#140f0a',pipe:'#5c4426',win:'none',amb:'ember',  props:[14,7,1,8,3],lampC:'#ffb35a',tint:'rgba(255,120,40,0.12)', dark:.52},
+ {name:'HARBOR DOCKS',    wa:'#243a4a',wb:'#1e303d',fs:'#3d4f5e',fd:'#2d3b46',ext:'#0e141a',pipe:'#35505f',win:'city',amb:'dust',   props:[12,0,1,2,12],lampC:'#c8e8ff',tint:'rgba(90,150,200,0.12)',dark:.50},
+ {name:'PINE HOLLOW CAMP',wa:'#1c2f20',wb:'#17281a',fs:'#413828',fd:'#2e281b',ext:'#0c120c',pipe:'#243a26',win:'hole',amb:'firefly',props:[9,15,2,0,15],trees:1,lampC:'#ffe9a8',tint:'rgba(40,80,170,0.14)',dark:.58},
+ {name:'FORT ASHER',      wa:'#333b26',wb:'#2b3220',fs:'#4a5238',fd:'#363d2a',ext:'#101207',pipe:'#445034',win:'none',amb:'dust',   props:[2,0,3,8,4], lampC:'#c8ff9a',tint:'rgba(120,200,90,0.10)', dark:.48},
+ {name:'THE WASTES',      wa:'#473722',wb:'#3d2f1c',fs:'#5f4c30',fd:'#453722',ext:'#160f08',pipe:'#5c482c',win:'hole',amb:'ash',    props:[8,1,5,2,0], lampC:'#ffcf8a',tint:'rgba(230,150,60,0.12)', dark:.48}];
+function biomeFor(n){return BIOMES[(n-1)%BIOMES.length];}
+function biomeIdx(n){return (n-1)%BIOMES.length;}
 
 /* ---------------- levels ---------------- */
 const FLOOR_H=66,GROUND=52;
@@ -638,6 +638,7 @@ function render(){
   drawWorld();
   ctx.restore();
   drawLighting();
+  ctx.fillStyle=lvl.biome.tint;ctx.fillRect(0,0,W,H);
   {const g=ctx.createRadialGradient(W/2,H/2,H*0.45,W/2,H/2,H*0.85);
    g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,0.35)');
    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
@@ -700,8 +701,61 @@ function drawProp(pr){
       ctx.fillRect(-4,-9,8,4);ctx.fillStyle='#1e3a1c';ctx.fillRect(-6,-2,12,2);break;
   }ctx.restore();
 }
+function decoBand(id,top,gy,wd,f){
+  switch(id){
+    case 0: /* city: brick mortar */
+      ctx.fillStyle='rgba(0,0,0,0.10)';
+      for(let y=top+10;y<gy-4;y+=6)ctx.fillRect(0,y,wd,1);break;
+    case 1: /* sewers: big pipe + waterline */
+      ctx.fillStyle='#24382c';ctx.fillRect(0,top+12,wd,7);
+      ctx.fillStyle='#31503e';ctx.fillRect(0,top+12,wd,2);
+      ctx.fillStyle='#182a1e';for(let x=10;x<wd;x+=26)ctx.fillRect(x,top+12,2,7);
+      ctx.fillStyle='rgba(90,220,150,0.18)';ctx.fillRect(0,gy-3,wd,3);break;
+    case 2: /* subway: tile band + platform stripe */
+      ctx.fillStyle='rgba(230,222,200,0.10)';ctx.fillRect(0,top+14,wd,18);
+      ctx.fillStyle='rgba(0,0,0,0.22)';
+      for(let x=0;x<wd;x+=10)ctx.fillRect(x,top+14,1,18);
+      ctx.fillRect(0,top+22,wd,1);
+      ctx.fillStyle='#c8a23a';for(let x=0;x<wd;x+=8)ctx.fillRect(x,gy-2,5,2);break;
+    case 3: /* hospital: pale band, teal stripe, red crosses */
+      ctx.fillStyle='rgba(225,235,240,0.10)';ctx.fillRect(0,top+8,wd,26);
+      ctx.fillStyle='#3aa8a0';ctx.fillRect(0,top+34,wd,2);
+      for(let x=60;x<wd;x+=180){ctx.fillStyle='#e8ecf0';ctx.fillRect(x,top+14,10,10);
+        ctx.fillStyle='#c03030';ctx.fillRect(x+4,top+16,2,6);ctx.fillRect(x+2,top+18,6,2);}break;
+    case 4: /* mall: storefront panels + blinking neon */
+      for(let x=0;x<wd;x+=70){const i=(x/70)|0;
+        ctx.fillStyle=i%2?'rgba(255,170,200,0.08)':'rgba(160,190,255,0.08)';
+        ctx.fillRect(x,top+8,60,GROUND-12);
+        ctx.fillStyle=i%2?'#ff8ac8':'#8ac8ff';
+        if((frame>>4)%3!==(i%3))ctx.fillRect(x+14,top+12,32,3);}break;
+    case 5: /* ironworks: hazard stripes + rivets + beam */
+      for(let x=0;x<wd;x+=12){ctx.fillStyle=(x/12|0)%2?'#c8a23a':'#1c1814';
+        ctx.fillRect(x,gy-4,12,4);}
+      ctx.fillStyle='#241c12';ctx.fillRect(0,top+8,wd,3);
+      ctx.fillStyle='rgba(255,255,255,0.07)';
+      for(let x=6;x<wd;x+=16)ctx.fillRect(x,top+9,2,1);break;
+    case 6: /* docks: plank seams + portholes */
+      ctx.fillStyle='rgba(0,0,0,0.12)';
+      for(let y=top+8;y<gy;y+=8)ctx.fillRect(0,y,wd,1);
+      for(let x=80;x<wd;x+=160){ctx.fillStyle='#4a6a80';ctx.beginPath();ctx.arc(x,top+22,6,0,7);ctx.fill();
+        ctx.fillStyle='#16283d';ctx.beginPath();ctx.arc(x,top+22,4,0,7);ctx.fill();}break;
+    case 8: /* fort: camo patches + stencil marks */
+      seed=f*131+SV.level*7;
+      for(let i=0;i<14;i++){ctx.fillStyle=i%2?'rgba(76,92,52,0.5)':'rgba(40,48,28,0.5)';
+        ctx.fillRect((rnd()*wd)|0,top+8+(rnd()*(GROUND-22)|0),10+(rnd()*18|0),5+(rnd()*7|0));}
+      ctx.fillStyle='rgba(200,210,180,0.16)';
+      for(let x=100;x<wd;x+=240)ctx.fillRect(x,top+14,14,8);break;
+    case 9: /* wastes: cracks + exposed brick */
+      seed=f*77+SV.level*11;
+      ctx.fillStyle='rgba(0,0,0,0.35)';
+      for(let i=0;i<10;i++){let x=(rnd()*wd)|0,y=top+8+(rnd()*24|0);
+        for(let s2=0;s2<5;s2++){ctx.fillRect(x,y,1,3);x+=(rnd()<.5?-1:1)*2;y+=3;}}
+      ctx.fillStyle='rgba(150,85,50,0.28)';
+      for(let x=50;x<wd;x+=170)ctx.fillRect(x,top+12,20,10);break;
+  }
+}
 function drawWorld(){
-  const B=lvl.biome,fl=lvl.floors,lt=lightning>0&&(frame>>1)%3!==0&&B.win==='city';
+  const B=lvl.biome,bid=BIOMES.indexOf(B),fl=lvl.floors,lt=lightning>0&&(frame>>1)%3!==0&&B.win==='city';
   ctx.fillStyle=B.ext;ctx.fillRect(-24,-18,lvl.width+48,worldH+30);
   ctx.fillStyle='rgba(255,255,255,0.05)';
   for(let x=-24;x<lvl.width+24;x+=8)ctx.fillRect(x,-18,4,2);
@@ -719,6 +773,7 @@ function drawWorld(){
         ctx.fillStyle='#241a10';ctx.fillRect(tx,top+8,5,GROUND-8);
         ctx.fillStyle='#31251a';ctx.fillRect(tx+1,top+8,2,GROUND-8);
         ctx.fillStyle='#16281a';ctx.fillRect(tx-6,top+6,17,7);}}
+    decoBand(bid,top,gy,lvl.width,f);
     seed=f*991+SV.level*17;
     for(let i=0;i<6;i++){ctx.fillStyle='rgba(0,0,0,0.20)';
       ctx.fillRect((rnd()*lvl.width)|0,top+10+(rnd()*28|0),8+(rnd()*20|0),3+(rnd()*8|0));}
@@ -763,7 +818,7 @@ function drawWorld(){
   for(const L of lamps){
     const ty=L.f*FLOOR_H+6,on=lampOn(L);
     ctx.fillStyle='#3a3f50';ctx.fillRect(L.x-1,ty,2,4);
-    ctx.fillStyle=on?'#ffe9a8':'#4a4a3a';ctx.fillRect(L.x-4,ty+4,8,3);}
+    ctx.fillStyle=on?lvl.biome.lampC:'#4a4a3a';ctx.fillRect(L.x-4,ty+4,8,3);}
   {const gy=groundY(extract.f),on=extract.open,bob=Math.sin(frame*0.1)*2;
    if(on){ctx.fillStyle='rgba(55,224,200,'+(0.10+0.06*Math.sin(frame*0.2))+')';
      ctx.fillRect(extract.x-11,gy-42,22,42);
@@ -845,7 +900,7 @@ function lampOn(L){return !L.flick||Math.sin(frame*0.7+L.ph)>-0.7;}
 function drawLighting(){
   lx.setTransform(1,0,0,1,0,0);lx.globalCompositeOperation='source-over';
   lx.clearRect(0,0,W,H);
-  const dark=lightning>0&&lvl.biome.win==='city'?0.30:0.58;
+  const dark=lightning>0&&lvl.biome.win==='city'?0.30:lvl.biome.dark;
   lx.fillStyle='rgba(4,6,14,'+dark+')';lx.fillRect(0,0,W,H);
   lx.globalCompositeOperation='destination-out';
   function punch(wx,wy,r,a){
@@ -958,7 +1013,7 @@ function drawTravel(){
   ctx.textAlign='center';ctx.font='bold 11px monospace';ctx.fillStyle='#7dffc8';
   ctx.fillText('NEXT STOP: '+biomeFor(SV.level).name,W/2,62);
   ctx.font='7px monospace';ctx.fillStyle='#6f7a8a';
-  const loop2=Math.floor((SV.level-1)/(BIOMES.length*3))+1;
+  const loop2=Math.floor((SV.level-1)/BIOMES.length)+1;
   ctx.fillText('region sweep '+loop2+' · stop '+SV.level,W/2,72);
   /* event card */
   const cy=80;
