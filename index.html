@@ -139,7 +139,9 @@ const ZPALS={
  walker:{g:'#6fae5c',G:'#83c46e',e:'#e04040',m:'#3d1f1f',c:'#565b6c',C:'#6a7086',t:'#3b3f50',T:'#2e3242',s:'#161a10'},
  runner:{g:'#a9c25a',G:'#c0d873',e:'#ffd23a',m:'#3d2f1f',c:'#6e4b3a',C:'#835c48',t:'#503a2d',T:'#3f2d23',s:'#1c1812'},
  brute:{g:'#4c8a4c',G:'#5da05d',e:'#ff5a2a',m:'#2d1414',c:'#3f4a5e',C:'#4f5c73',t:'#2c3346',T:'#232838',s:'#0e120a'},
- spitter:{g:'#7fbf8f',G:'#95d6a6',e:'#7affc8',m:'#1f3d2a',c:'#4a6e5a',C:'#5b8570',t:'#31503d',T:'#274031',s:'#121e16'}};
+ spitter:{g:'#7fbf8f',G:'#95d6a6',e:'#7affc8',m:'#1f3d2a',c:'#4a6e5a',C:'#5b8570',t:'#31503d',T:'#274031',s:'#121e16'},
+ hazmat:{g:'#d8c24a',G:'#f0dc6e',e:'#3a4a5c',m:'#6a5a1a',c:'#c8b23a',C:'#e0cc5e',t:'#8a7a24',T:'#6e6118',s:'#1a1608'},
+ leaper:{g:'#8f6fae',G:'#a683c4',e:'#ffd23a',m:'#2d1f3d',c:'#4a3a5e',C:'#5c4a73',t:'#332846',T:'#281f38',s:'#140e1c'}};
 const ZSPR={};for(const k in ZPALS)ZSPR[k]=[0,1,2].map(i=>mk(zomRows(i),ZPALS[k]));
 const CRPAL={g:'#7fae5c',G:'#93c46e',e:'#e04040',c:'#4a4f5e',C:'#5c6274',t:'#3b3f50',s:'#141810'};
 const CRAWL=[
@@ -147,10 +149,22 @@ const CRAWL=[
  mk(["........gggg","......gGGeg.","...ccgGGGggg","..ccccccc...",".tcCCCccc.g.","ttcccccc.gg.",".tt..s......"],CRPAL)];
 const EXPAL={g:'#8fae6c',G:'#a3c47e',e:'#e0d040',m:'#3d2f1f',b:'#7a9a5f',B:'#a5c485',
   Y:'#e8e86a',t:'#3b4030',s:'#141810'};
-const EXPL=[0,1].map(i=>mk(["....gggg....","...gGGGGg...","...geGGeg...","....gmmg....",
+function bigRows(i){return["....gggg....","...gGGGGg...","...geGGeg...","....gmmg....",
  "...bbbbbb...","..bBBBBBBb..",".bBBYBBYBBb.",".bBBBBBBBBb.",".bBBBBYBBBb.",
  ".bbBBBBBBbb.","..bbbbbbbb..","...tttttt...",
- i?"...tt..tt...":"..tt....tt..",i?"...gg..gg...":"..gg....gg..","..s......s.."],EXPAL));
+ i?"...tt..tt...":"..tt....tt..",i?"...gg..gg...":"..gg....gg..","..s......s.."];}
+const EXPL=[0,1].map(i=>mk(bigRows(i),EXPAL));
+/* bloater: swollen, gas-filled, pops into a toxic cloud */
+const BLPAL={g:'#6a8f5a',G:'#7ea36c',e:'#c8ff6a',m:'#2a3d1a',b:'#5f7a4a',B:'#86a86a',
+  Y:'#c0e05a',t:'#3a4630',s:'#12180c'};
+const BLOAT=[0,1].map(i=>mk(bigRows(i),BLPAL));
+/* hound: low, fast, hunts in packs */
+const HDPAL={g:'#6f5a3c',G:'#87704c',e:'#ff5a2a',c:'#4a3d28',t:'#3a301e',s:'#14100a'};
+const HOUND=[
+ mk(["..........gg",".........gGg","..gggggggGGg",".gGGGGGGGGg.","gGGGGGGGGg..",
+     ".t.t...t.t..","tt.tt.tt.tt."],HDPAL),
+ mk(["..........gg",".........gGg","..gggggggGGg",".gGGGGGGGGg.","gGGGGGGGGg..",
+     "..tt...tt...",".t.tt.t.tt.."],HDPAL)];
 const SCPAL={g:'#9fb8a8',G:'#b8d0c0',e:'#1a0a0a',m:'#4d0f14',c:'#3a4440',C:'#4c5854',
   t:'#2e3634',s:'#10120e'};
 const SCREAM=[0,1].map(i=>mk([
@@ -165,6 +179,7 @@ const ARM=[0,1,2].map(i=>mk(["...aaaaaa...","..aAAAAAAa..","..aAAAAAAa..","..agg
  "...TttttT...","...tttttt...",...legs(i).map(r=>r.replace(/p/g,'t').replace(/b/g,'g').replace(/P/g,'T'))],ARPAL));
 function sprFor(z,fr){
   switch(z.spr){case 'crawler':return CRAWL[fr%2];case 'exploder':return EXPL[fr%2];
+   case 'bloater':return BLOAT[fr%2];case 'hound':return HOUND[fr%2];
    case 'screamer':return SCREAM[fr%2];case 'armored':return ARM[fr%3];
    default:return ZSPR[z.spr][fr%3];}}
 
@@ -174,8 +189,13 @@ const WEAPONS={
  smg:   {name:'MAC-10 SMG',   dmg:6, rof:9.5,range:90, pellets:1,spread:3,pierce:0,cost:220, snd:'shot', bspd:270,color:'#ffe9a0',blen:6},
  shotgun:{name:'M870 SHOTGUN',dmg:8, rof:1.3,range:68, pellets:5,spread:9,pierce:0,cost:520, snd:'shot2',bspd:240,color:'#ffb35a',blen:9},
  rifle: {name:'AK ASSAULT R.',dmg:16,rof:5.5,range:160,pellets:1,spread:1,pierce:1,cost:1100,snd:'shot2',bspd:340,color:'#8af0ff',blen:10},
- lmg:   {name:'M249 LMG',     dmg:12,rof:11, range:140,pellets:1,spread:4,pierce:1,cost:2600,snd:'shot2',bspd:320,color:'#ff8ae0',blen:11}};
-const WKEYS=['pistol','smg','shotgun','rifle','lmg'];
+ lmg:   {name:'M249 LMG',     dmg:12,rof:11, range:140,pellets:1,spread:4,pierce:1,cost:2600,snd:'shot2',bspd:320,color:'#ff8ae0',blen:11},
+ magnum:{name:'.44 MAGNUM',   dmg:34,rof:1.7,range:130,pellets:1,spread:0,pierce:1,cost:780, snd:'shot2',bspd:330,color:'#ffb0b0',blen:6},
+ xbow:  {name:'TAC CROSSBOW', dmg:52,rof:1.1,range:170,pellets:1,spread:0,pierce:3,cost:1500,snd:'clank',bspd:250,color:'#cfe0a0',blen:9},
+ flamer:{name:'FLAMETHROWER', dmg:5, rof:24, range:44, pellets:2,spread:16,pierce:9,cost:3300,snd:'sizz', bspd:150,color:'#ff8a3a',blen:8,burn:1},
+ gl:    {name:'M79 LAUNCHER', dmg:14,rof:0.8,range:135,pellets:1,spread:0,pierce:0,cost:4400,snd:'whoosh',bspd:200,color:'#a8d86a',blen:8,boom:1},
+ minigun:{name:'XM214 MINIGUN',dmg:9,rof:20, range:150,pellets:1,spread:5,pierce:2,cost:7200,snd:'shot', bspd:340,color:'#8af0ff',blen:12}};
+const WKEYS=['pistol','smg','magnum','shotgun','rifle','xbow','lmg','flamer','gl','minigun'];
 /* ---- special weapons (consumables, deployed from the top bar) ---- */
 const ITEMS={
  frag:   {name:'FRAG GRENADE',   cost:110, max:9, col:'#a8d86a',
@@ -189,7 +209,7 @@ const ITEMS={
 const IKEYS=['frag','molotov','turret','strike'];
 function freshSave(){return{cash:0,level:1,day:1,miles:0,maxHp:100,hp:100,hpLvl:0,
   owned:{pistol:true},mod:{zmult:1},items:{frag:2,molotov:0,turret:0,strike:0},
-  up:{pistol:{d:0,r:0},smg:{d:0,r:0},shotgun:{d:0,r:0},rifle:{d:0,r:0},lmg:{d:0,r:0}},cur:'pistol'};}
+  up:WKEYS.reduce((o,k)=>(o[k]={d:0,r:0},o),{}),cur:'pistol'};}
 let SV=freshSave();
 /* ---- saved run (GitHub Pages has real localStorage) ---- */
 const SKEY='lastStandLongRoad.save.v2';
@@ -230,7 +250,11 @@ const ZDEF={
  screamer:{hp:22, sp:14, dmg:6, cash:20, sc:1,   h:16,spr:'screamer'},
  armored: {hp:60, sp:10, dmg:11,cash:26, sc:1.05,h:15,spr:'armored'},
  boss:    {hp:520,sp:12, dmg:22,cash:220,sc:2.15,h:15,spr:'brute'},
- abom:    {hp:700,sp:8,  dmg:26,cash:320,sc:2.2, h:15,spr:'exploder'}};
+ abom:    {hp:700,sp:8,  dmg:26,cash:320,sc:2.2, h:15,spr:'exploder'},
+ hound:   {hp:14, sp:46, dmg:6, cash:12, sc:0.95,h:8, spr:'hound'},
+ hazmat:  {hp:58, sp:12, dmg:9, cash:24, sc:1,   h:15,spr:'hazmat'},
+ leaper:  {hp:26, sp:30, dmg:10,cash:22, sc:1,   h:15,spr:'leaper'},
+ bloater: {hp:95, sp:6.5,dmg:14,cash:32, sc:1.35,h:15,spr:'bloater'}};
 
 /* ---------------- biomes ---------------- */
 /* prop kinds: 0 crate 1 barrel 2 sandbags 3 generator 4 table 5 chair
@@ -282,7 +306,28 @@ const BIOMES=[
   fs:'#5f4c30',fd:'#453722',ext:'#160f08',amb:'none',props:[8,1,5,2,0],
   lampC:'#ffcf8a',tint:'rgba(230,150,60,0.12)', dark:.46,
   flavor:['Ash falls like snow that never melts.',
-          'Whatever burned here burned for weeks.']}];
+          'Whatever burned here burned for weeks.']},
+ {name:'DROWNED SUBURB',out:1,para:'meadow',weather:'rain',sky:['#1c2630','#3c5060'],
+  fs:'#40525a',fd:'#2c3a40',ext:'#0b1114',amb:'drip',props:[15,0,1,15,5],
+  lampC:'#bfe0ff',tint:'rgba(80,150,190,0.13)',dark:.48,
+  flavor:['The levee went first. The people went second.',
+          'Mailboxes stand in three feet of standing water.']},
+ {name:'MARROW RAIL YARD',  wa:'#2e2f36',wb:'#26272d',fs:'#43454f',fd:'#31333b',ext:'#101116',pipe:'#3c3f4a',win:'hole',amb:'dust',   props:[12,1,0,14,2],lampC:'#ffd98a',tint:'rgba(140,140,170,0.09)',dark:.53,
+  flavor:['Boxcars for a mile, every door pried open from inside.']},
+ {name:'THE COLD PASS',out:1,para:'forest',weather:'snow',sky:['#141c2c','#33445c'],
+  fs:'#c8d4e4',fd:'#5a6474',ext:'#0c1018',amb:'none',props:[15,0,9,15,1],
+  lampC:'#dbe8ff',tint:'rgba(170,200,255,0.14)',dark:.44,
+  flavor:['The cold slows them down. It slows you down more.',
+          'Fresh tracks in the snow. Bare feet.']},
+ {name:'QUARANTINE ZONE',  wa:'#3a4038',wb:'#31362f',fs:'#4e5648',fd:'#393f34',ext:'#111309',pipe:'#49523f',win:'glow',amb:'dust',    props:[2,11,4,7,3],lampC:'#e8ff9a',tint:'rgba(180,230,110,0.11)',dark:.50,
+  flavor:['Plastic sheeting everywhere, every seal cut open.']},
+ {name:'REDWOOD STAND',out:1,para:'forest',weather:'drizzle',sky:['#101a18','#22362e'],
+  fs:'#3a4a30',fd:'#2a2418',ext:'#0a1009',amb:'drip',props:[15,9,0,15,2],
+  lampC:'#c8ffbe',tint:'rgba(80,170,110,0.11)',dark:.52,
+  flavor:['Trees older than the country. They have seen worse.']},
+ {name:'NEON STRIP',       wa:'#2a1f3d',wb:'#231a33',fs:'#453257',fd:'#332545',ext:'#120c1a',pipe:'#503a66',win:'glow',amb:'dust',    props:[13,10,5,4,10],lampC:'#ff8ae0',tint:'rgba(230,110,220,0.13)',dark:.47,
+  flavor:['Half the signs still run. Nobody left to read them.',
+          'A slot machine pays out to an empty stool, over and over.']}];
 function biomeFor(n){return BIOMES[(n-1)%BIOMES.length];}
 function biomeIdx(n){return (n-1)%BIOMES.length;}
 
@@ -306,13 +351,17 @@ function levelCfg(n){
   let base=drive?Math.min(14+n*3,60):Math.min(5+n*1.7,44);
   const count=Math.floor(base*SV.mod.zmult),mix=[];
   for(let i=0;i<count;i++){const q=rnd();let t='walker';
-    if(n>=3&&q<0.26)t='runner';
+    if(n>=4&&q<0.14)t='hound';
+    else if(n>=3&&q<0.28)t='runner';
     else if(n>=6&&q<0.38)t='spitter';
-    else if(n>=7&&q<0.50)t='crawler';
-    else if(n>=9&&q<0.58)t='exploder';
-    else if(n>=11&&q<0.64)t='screamer';
-    else if(n>=13&&q<0.72)t='armored';
-    else if(n>=7&&q>0.90)t='brute';
+    else if(n>=7&&q<0.47)t='crawler';
+    else if(n>=9&&q<0.54)t='exploder';
+    else if(n>=10&&q<0.60)t='leaper';
+    else if(n>=11&&q<0.65)t='screamer';
+    else if(n>=12&&q<0.70)t='hazmat';
+    else if(n>=13&&q<0.76)t='armored';
+    else if(n>=14&&q<0.81)t='bloater';
+    else if(n>=7&&q>0.92)t='brute';
     mix.push(t);}
   /* big ones stay off the road until you can actually fight them */
   if(n>=20&&n%10===0)mix.push('abom');
@@ -389,7 +438,7 @@ function spawnZombie(t,x,f){
   zombies.push({t,spr:B.spr,x,f,y:groundY(f),hp:B.hp*lvl.hpMult,maxHp:B.hp*lvl.hpMult,
     sp:B.sp*(0.9+Math.random()*0.25),dmg:B.dmg,cash:B.cash,scale:B.sc,h:B.h,
     dir:Math.random()<.5?-1:1,atkT:0,spitT:1+Math.random()*2,anim:Math.random()*10,
-    flash:0,rageT:0,coolT:0,fuseT:-1,climb:null,burn:0,repathT:0});
+    flash:0,rageT:0,coolT:0,fuseT:-1,climb:null,burn:0,repathT:0,dashT:0,lungeT:1+Math.random()*2});
 }
 
 /* ---------------- special weapons ---------------- */
@@ -645,6 +694,10 @@ function ambient(dt){
       parts.push({x,y:cam.y-H/(2*cam.z)-8,vx:-24-wet*8,vy:150+wet*35,life:3,
         c:wet>2?'rgba(170,195,230,0.55)':'rgba(150,175,215,0.4)',s:1,rain:1,fy:groundY(0)});}
   }
+  if(B.weather==='snow')for(let q=0;q<2;q++)parts.push({
+    x:cam.x+(Math.random()-0.5)*W/cam.z,y:cam.y-H/2/cam.z-10,
+    vx:(Math.random()-0.5)*16,vy:16+Math.random()*20,life:3.4,
+    c:Math.random()<.5?'rgba(255,255,255,0.85)':'rgba(210,228,255,0.7)',s:1});
   if(B.weather==='ash'&&Math.random()<0.3)parts.push({x:cam.x+(Math.random()-0.5)*W/cam.z,
     y:cam.y-H/(2*cam.z),vx:(Math.random()-0.5)*8,vy:10+Math.random()*8,life:5,c:'rgba(190,180,170,0.4)',s:1});
   if(a==='dust'&&Math.random()<0.08)parts.push({x:cam.x+(Math.random()-0.5)*W/cam.z,
@@ -745,7 +798,8 @@ function update(dt){
     for(let i=0;i<wp.pellets;i++){
       bullets.push({x:P.x+P.dir*7,y:by+(Math.random()-0.5)*wp.spread*0.3,
         vx:P.dir*wp.bspd,vy:aimVy+(Math.random()-0.5)*wp.spread*6,dmg:wDmg(wk),
-        life:wp.range/wp.bspd,pierce:wp.pierce,color:wp.color,trail:[]});}
+        life:wp.range/wp.bspd,pierce:wp.pierce,color:wp.color,trail:[],
+        burn:wp.burn||0,boom:wp.boom||0});}
     parts.push({x:P.x-P.dir*2,y:by,vx:-P.dir*(20+Math.random()*20),vy:-50-Math.random()*30,
       life:1.1,c:'#d8b45a',s:1,g:1,fy:P.climb?P.y+30:P.y});
   }
@@ -769,11 +823,14 @@ function update(dt){
           for(let p=0;p<4;p++)parts.push({x:b.x,y:b.y,vx:Math.sign(b.vx)*(20+Math.random()*60),
             vy:-Math.random()*60,life:.45,c:'#8f2020',s:1,g:1,fy:z.y,splat:1});
         }
+        if(b.burn&&z.t!=='hazmat')z.burn=1.4;
         z.hp-=dmg;z.flash=.08;sfx('hit');
+        if(b.boom){explode(b.x,b.y,z.f,32,10,120);dmg+=0;b.pierce=0;}
         parts.push({x:b.x,y:b.y-4,vy:-22,life:.6,c:'#ffe08a',s:1,txt:''+Math.round(dmg)});
         if(z.hp<=0)killZombie(z);
         if(b.pierce>0)b.pierce--;else{dead=true;break;}
       }}
+    if(dead&&b.boom&&b.life>0){explode(b.x,b.y,P.f,32,10,120);}
     if(dead){
       if(b.life>0){
         for(let p=0;p<3;p++)parts.push({x:b.x,y:b.y,vx:-Math.sign(b.vx)*(20+Math.random()*40),
@@ -786,7 +843,16 @@ function update(dt){
   if(!frozen)for(const z of zombies.slice()){
     if(z.hp<=0)continue;
     if(z.flash>0)z.flash-=dt;
-    if(z.burn>0)z.burn-=dt;
+    if(z.burn>0){z.burn-=dt;z.hp-=16*dt;
+      if(Math.random()<0.5)parts.push({x:z.x+(Math.random()-0.5)*7,y:zMid(z),
+        vy:-30-Math.random()*20,life:.35,c:'rgba(255,150,50,0.8)',s:1});
+      if(z.hp<=0){killZombie(z);continue;}}
+    if(z.dashT>0){z.dashT-=dt;
+      z.x+=z.dir*z.sp*3.4*dt;z.anim+=dt*12;
+      z.x=clamp(z.x,10,lvl.width-10);
+      if(z.f===P.f&&Math.abs(z.x-P.x)<9*z.scale&&z.atkT<=0){
+        z.atkT=0.8;hurtPlayer(z.dmg);z.dashT=0;}
+      continue;}
     z.atkT-=dt;z.coolT-=dt;
     if(z.rageT>0)z.rageT-=dt;
     /* the longer a stop drags on, the harder they push — no more stalemates */
@@ -809,6 +875,15 @@ function update(dt){
         else{z.dir=best.x>z.x?1:-1;z.x+=z.dir*z.sp*0.8*rage*dt;z.anim+=dt*5.5*rage;}
         z.x=clamp(z.x,10,lvl.width-10);continue;}
     }
+    if(engaged&&z.t==='leaper'){
+      z.lungeT-=dt;
+      const gap=Math.abs(P.x-z.x);
+      if(z.lungeT<=0&&gap>26&&gap<120){
+        z.dir=P.x>z.x?1:-1;z.dashT=0.42;z.lungeT=2.6+Math.random();
+        sfx('whoosh');
+        for(let q=0;q<5;q++)parts.push({x:z.x,y:zMid(z),vx:-z.dir*(20+Math.random()*40),
+          vy:-Math.random()*40,life:.3,c:'#a683c4',s:1});
+        continue;}}
     if(engaged){
       const d=P.x-z.x;
       if((z.t==='exploder'||z.t==='abom')&&Math.abs(d)<15*z.scale&&Math.abs(P.y-z.y)<20&&z.fuseT<0){
@@ -884,15 +959,17 @@ function update(dt){
   if(!frozen)for(let i=fires.length-1;i>=0;i--){const F=fires[i];F.t-=dt;
     const gy=groundY(F.f);
     for(let q=0;q<2;q++)parts.push({x:F.x+(Math.random()-0.5)*F.r*1.7,y:gy-2,
-      vx:(Math.random()-0.5)*12,vy:-30-Math.random()*28,life:.45+Math.random()*.4,
-      c:Math.random()<.5?'rgba(255,150,50,0.85)':'rgba(255,90,30,0.7)',s:2});
-    lights.push({x:F.x,y:gy-8,r:F.r*1.9,t:.05});
-    for(const z of zombies.slice()){
-      if(z.hp>0&&z.f===F.f&&Math.abs(z.x-F.x)<F.r){
-        z.hp-=36*dt;z.flash=.05;z.burn=1.2;
+      vx:(Math.random()-0.5)*12,vy:(F.gas?-10:-30)-Math.random()*(F.gas?14:28),
+      life:.45+Math.random()*.5,
+      c:F.gas?'rgba(150,200,90,0.55)'
+        :(Math.random()<.5?'rgba(255,150,50,0.85)':'rgba(255,90,30,0.7)'),s:2});
+    if(!F.gas)lights.push({x:F.x,y:gy-8,r:F.r*1.9,t:.05});
+    if(!F.gas)for(const z of zombies.slice()){
+      if(z.hp>0&&z.f===F.f&&Math.abs(z.x-F.x)<F.r&&z.t!=='hazmat'){
+        z.hp-=30*dt;z.flash=.05;z.burn=1.2;
         if(z.hp<=0)killZombie(z);}}
     if(P.f===F.f&&!P.climb&&Math.abs(P.x-F.x)<F.r*0.75&&P.hazT<=0){
-      P.hazT=0.7;P.hp-=6;sfx('sizz');
+      P.hazT=0.7;P.hp-=F.gas?5:6;sfx('sizz');
       if(P.hp<=0){P.hp=0;state='over';}}
     if(F.t<=0)fires.splice(i,1);}
   /* --- deployed turrets --- */
@@ -942,6 +1019,10 @@ function killZombie(z){
   zombies.splice(zombies.indexOf(z),1);
   const n=(z.t==='boss'||z.t==='abom')?6:(1+(Math.random()*2|0));
   for(let i=0;i<n;i++)cash.push({x:z.x+(Math.random()-0.5)*16,y:groundY(z.f),f:z.f,v:Math.ceil(z.cash/n)});
+  if(z.t==='bloater'){
+    fires.push({x:z.x,f:z.f,t:8,r:27,gas:1});sfx('sizz');
+    for(let p=0;p<14;p++)parts.push({x:z.x,y:zMid(z),vx:(Math.random()-0.5)*90,
+      vy:-Math.random()*70,life:.8,c:'rgba(150,200,90,0.75)',s:2});}
   if(z.t==='exploder'){explode(z.x,zMid(z),z.f,26,20,60);return;}
   if(z.t==='abom'){explode(z.x,zMid(z),z.f,42,34,120);flashT=0.25;return;}
   for(let p=0;p<10;p++)parts.push({x:z.x,y:zMid(z),vx:(Math.random()-0.5)*110,vy:-Math.random()*90,
@@ -1157,7 +1238,7 @@ function drawOutdoor(B){
   sg.addColorStop(0,ltng?'#8a9ac8':B.sky[0]);sg.addColorStop(1,ltng?'#a8b4d0':B.sky[1]);
   ctx.fillStyle=sg;ctx.fillRect(left,-160,right-left,gy+160);
   /* moon / storm clouds */
-  if(B.weather==='none'||B.weather==='ash'){
+  if(B.weather==='none'||B.weather==='ash'||B.weather==='snow'){
     ctx.fillStyle=B.weather==='ash'?'#c88a4a':'#e8ecff';
     ctx.beginPath();ctx.arc(cam.x*0.9+120,-90+cam.y*0.1,9,0,7);ctx.fill();
     ctx.fillStyle=B.sky[0];ctx.beginPath();ctx.arc(cam.x*0.9+124,-93+cam.y*0.1,8,0,7);ctx.fill();}
@@ -1338,6 +1419,14 @@ function drawWorld(){
   ctx.fillStyle='#7aff5a';for(const s of spits)ctx.fillRect(s.x-2,s.y-1,4,3);
   /* burning pools */
   for(const F of fires){const gy=groundY(F.f),a=Math.min(1,F.t/1.5);
+    if(F.gas){
+      ctx.fillStyle='rgba(140,200,90,'+(0.16*a)+')';
+      ctx.fillRect(F.x-F.r,gy-16,F.r*2,16);
+      for(let i=-2;i<=2;i++){
+        const h=8+Math.abs(Math.sin(frame*0.09+i*1.3+F.x))*7;
+        ctx.fillStyle='rgba(160,215,100,'+(0.22*a)+')';
+        ctx.fillRect(F.x+i*(F.r/2.6)-4,gy-h,8,h);}
+      continue;}
     ctx.fillStyle='rgba(255,110,30,'+(0.20*a)+')';
     ctx.fillRect(F.x-F.r,gy-3,F.r*2,3);
     for(let i=-2;i<=2;i++){
@@ -1761,17 +1850,41 @@ function drawTravel(){
 const SHOP_TOP=46,SHOP_STEP=21,SHOP_VISIBLE=6,ICON_W=16,ICON_H=13;
 function ip(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x|0,y|0,w,h);}
 function gunIcon(k,ox,oy){
-  const c=WEAPONS[k].color,dark='#3d4350',metal='#8b93a3';
-  if(k==='pistol'){ip(ox+3,oy+4,8,3,c);ip(ox+11,oy+5,3,1,metal);
-    ip(ox+4,oy+7,3,5,dark);ip(ox+9,oy+3,1,1,metal);}
-  else if(k==='smg'){ip(ox+3,oy+4,8,3,c);ip(ox+11,oy+5,4,1,metal);
-    ip(ox+4,oy+7,2,3,dark);ip(ox+7,oy+7,2,5,dark);ip(ox+1,oy+4,2,2,dark);}
-  else if(k==='shotgun'){ip(ox+2,oy+4,13,2,c);ip(ox+5,oy+6,4,2,metal);
-    ip(ox+0,oy+5,3,3,dark);ip(ox+9,oy+6,2,2,dark);}
-  else if(k==='rifle'){ip(ox+3,oy+4,9,2,c);ip(ox+12,oy+4,3,1,metal);
+  const c=(WEAPONS[k]||WEAPONS.pistol).color,dark='#3d4350',metal='#8b93a3';
+  switch(k){
+   case 'pistol':
+    ip(ox+3,oy+4,8,3,c);ip(ox+11,oy+5,3,1,metal);
+    ip(ox+4,oy+7,3,5,dark);ip(ox+9,oy+3,1,1,metal);break;
+   case 'smg':
+    ip(ox+3,oy+4,8,3,c);ip(ox+11,oy+5,4,1,metal);
+    ip(ox+4,oy+7,2,3,dark);ip(ox+7,oy+7,2,5,dark);ip(ox+1,oy+4,2,2,dark);break;
+   case 'shotgun':
+    ip(ox+2,oy+4,13,2,c);ip(ox+5,oy+6,4,2,metal);
+    ip(ox+0,oy+5,3,3,dark);ip(ox+9,oy+6,2,2,dark);break;
+   case 'rifle':
+    ip(ox+3,oy+4,9,2,c);ip(ox+12,oy+4,3,1,metal);
     ip(ox+0,oy+4,3,2,dark);ip(ox+6,oy+6,3,2,dark);ip(ox+7,oy+8,3,3,dark);
-    ip(ox+3,oy+6,2,3,dark);}
-  else{ip(ox+2,oy+3,11,4,c);ip(ox+13,oy+4,2,1,metal);
+    ip(ox+3,oy+6,2,3,dark);break;
+   case 'magnum':
+    ip(ox+4,oy+4,7,3,c);ip(ox+11,oy+5,3,1,metal);
+    ip(ox+6,oy+3,3,2,metal);ip(ox+5,oy+7,3,5,'#5a3a24');
+    ip(ox+6,oy+5,2,2,dark);break;
+   case 'xbow':
+    ip(ox+2,oy+2,2,9,c);ip(ox+4,oy+1,1,2,c);ip(ox+4,oy+10,1,2,c);
+    ip(ox+3,oy+6,12,1,'#6a7080');ip(ox+5,oy+5,7,3,dark);
+    ip(ox+12,oy+6,4,1,'#e8e8b0');break;
+   case 'flamer':
+    ip(ox+2,oy+5,6,6,'#4a5560');ip(ox+3,oy+6,4,2,'#7a3a2a');
+    ip(ox+8,oy+6,5,2,dark);ip(ox+13,oy+5,2,4,c);
+    ip(ox+15,oy+6,1,2,'#ffe066');break;
+   case 'gl':
+    ip(ox+2,oy+5,10,4,dark);ip(ox+12,oy+4,4,6,c);
+    ip(ox+4,oy+9,3,3,'#5a3a24');ip(ox+3,oy+3,5,2,metal);break;
+   case 'minigun':
+    ip(ox+1,oy+4,6,6,dark);ip(ox+7,oy+4,8,2,c);ip(ox+7,oy+7,8,2,c);
+    ip(ox+7,oy+6,8,1,metal);ip(ox+2,oy+10,3,3,dark);break;
+   default:
+    ip(ox+2,oy+3,11,4,c);ip(ox+13,oy+4,2,1,metal);
     ip(ox+4,oy+7,5,4,dark);ip(ox+10,oy+7,1,4,metal);ip(ox+12,oy+7,1,4,metal);
     ip(ox+0,oy+4,2,2,dark);}}
 function badge(kind,ox,oy){
