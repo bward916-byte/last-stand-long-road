@@ -25,7 +25,7 @@
     border:2px solid rgba(170,255,190,.6);box-shadow:0 0 14px rgba(120,255,150,.22);
     pointer-events:none;will-change:transform}
   /* face buttons (right), laid out like a pad */
-  #actBtns{position:fixed;right:14px;bottom:16px;width:142px;height:132px;z-index:5}
+  #actBtns{position:fixed;right:14px;bottom:16px;width:142px;height:184px;z-index:5}
   .abtn{position:absolute;border-radius:50%;font-weight:bold;text-align:center;line-height:1.15;
     display:flex;align-items:center;justify-content:center;
     font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent}
@@ -33,6 +33,9 @@
     background:rgba(255,90,60,.16);border:2px solid rgba(255,140,90,.5);color:#fca}
   #btnB{right:78px;bottom:64px;width:60px;height:60px;font-size:10px;
     background:rgba(90,160,255,.15);border:2px solid rgba(120,190,255,.5);color:#bdf}
+  #btnC{right:6px;bottom:112px;width:58px;height:58px;font-size:10px;
+    background:rgba(120,255,150,.13);border:2px solid rgba(140,255,170,.45);color:#9fe}
+  #btnC.rdy{background:rgba(255,215,106,.30);border-color:rgba(255,235,150,.85);color:#ffeaa0}
   .abtn:active,.abtn.on{filter:brightness(1.9)}
   /* bottom-docked menu bar used on the ARMORY / ROAD screens so the
      movement D-pad never sits on top of the item list */
@@ -61,6 +64,7 @@
   <div id="stick"><i class="n"></i><i class="s"></i><i class="w"></i><i class="e"></i>
     <div id="nub"></div></div>
   <div id="actBtns">
+    <div class="abtn" id="btnC">TURBO</div>
     <div class="abtn" id="btnB">DEPLOY</div>
     <div class="abtn" id="btnAct">SWAP<br>OK</div>
   </div>
@@ -461,15 +465,15 @@ function levelCfg(n){
   seed=n*7919+13;
   const drive=isDrive(n);
   const biome=drive?BIOMES[2]:biomeFor(n),r=rnd();
-  let ltype='block',floors=Math.min(2+Math.floor((n-1)/3),5),width=Math.min(420+n*22,900);
-  if(drive){ltype='drive';floors=1;width=Math.min(1500+n*40,2600);}
-  else if(biome.out){ltype='field';floors=1;width=Math.min(680+n*12,1150);}
-  else if(n>2&&r<0.30){ltype='crossing';floors=1;width=Math.min(640+n*10,1100);}
-  else if(n>4&&r<0.55){ltype='tower';floors=Math.min(3+Math.floor(n/6),5);width=(300+rnd()*120)|0;}
+  let ltype='block',floors=Math.min(2+Math.floor((n-1)/3),5),width=Math.min(720+n*38,1550);
+  if(drive){ltype='drive';floors=1;width=Math.min(2400+n*70,4200);}
+  else if(biome.out){ltype='field';floors=1;width=Math.min(1150+n*22,1950);}
+  else if(n>2&&r<0.30){ltype='crossing';floors=1;width=Math.min(1080+n*18,1850);}
+  else if(n>4&&r<0.55){ltype='tower';floors=Math.min(3+Math.floor(n/6),5);width=(430+rnd()*180)|0;}
   const upward=ltype==='tower'&&rnd()<0.5;
   const start={x:26,f:upward?floors-1:0};
   const ext={x:width-24,f:upward?0:floors-1};
-  let base=drive?Math.min(14+n*3,60):Math.min(5+n*1.7,44);
+  let base=drive?Math.min(24+n*5,105):Math.min(9+n*3.1,78);
   const count=Math.floor(base*SV.mod.zmult),mix=[];
   for(let i=0;i<count;i++){const q=rnd();let t='walker';
     if(n>=4&&q<0.14)t='hound';
@@ -490,15 +494,17 @@ function levelCfg(n){
   else if(n>=5&&n%5===0)mix.push('brute');
   /* gentler early HP ramp — the first stops were unwinnable with a pistol */
   const hpMult=n<=8?1+(n-1)*0.10:1.70+(n-8)*0.20;
-  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive};
+  const waves=drive?1:(n<3?1:(n<8?2:3));
+  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves};
 }
 
 /* ---------------- state ---------------- */
 let state='menu';
 let P,zombies,bullets,spits,cash,parts,decals,corpses,rings,lights,ladders,props,lamps,hazards,fg=[],
     throwns=[],fires=[],turrets=[],strikes=[],levelT=0,itemMsgT=0,itemMsg='',
-    lvl,extract,killsLeft,msg='',msgT=0,flavorLine='',shopSel=0,travelSel=0,menuSel=0,overSel=0,
-    frame=0,shake=0,flashT=0,hitStop=0,punchX=0,punchY=0,combo=0,comboT=0,comboBest=0,
+    lvl,extract,killsLeft,waveLeft=0,waveAt=-1,wavePool=[],turbo=0,turboT=0,bloodT=0,lensBlood=[],
+    msg='',msgT=0,flavorLine='',shopSel=0,travelSel=0,menuSel=0,overSel=0,
+    frame=0,shake=0,flashT=0,hitStop=0,punchX=0,punchY=0,combo=0,comboT=0,comboBest=0,turboRung=0,
     lightning=0,ltTimer=8,worldH=0,event=null,eventDone=true,eventResult='';
 let cam={x:0,y:0,z:1},cine={mode:null,t:0,timer:14};
 function fitZ(){return Math.max(0.25,Math.min(W/(lvl.width+30),H/(worldH+26))*0.95);}
@@ -513,6 +519,7 @@ function startLevel(n){
     drive:!!lvl.drive,ramT:0,bounce:0};
   zombies=[];bullets=[];spits=[];cash=[];parts=[];decals=[];corpses=[];rings=[];lights=[];
   hazards=[];shake=0;flashT=0;hitStop=0;punchX=punchY=0;combo=0;comboT=0;
+  turbo=0;turboT=0;lensBlood=[];
   throwns=[];fires=[];turrets=[];strikes=[];levelT=0;itemMsgT=0;
   ladders=[];
   for(let f=0;f<lvl.floors-1;f++){
@@ -532,7 +539,7 @@ function startLevel(n){
       px+=40+rnd()*70;}
     if(!lvl.biome.out)
       for(let x=70;x<lvl.width-40;x+=110+rnd()*60)lamps.push({x:x|0,f,flick:rnd()<0.3,ph:rnd()*9});
-    for(let i=0;i<3;i++)decals.push({x:(30+rnd()*(lvl.width-60))|0,y:groundY(f)-(rnd()*3|0),
+    for(let i=0;i<5;i++)decals.push({x:(30+rnd()*(lvl.width-60))|0,y:groundY(f)-(rnd()*3|0),
       w:4+(rnd()*8|0),c:'rgba(90,20,20,0.5)'});}
   /* outdoor foreground vegetation (drawn over the action, sways in wind) */
   if(lvl.biome.out){
@@ -543,11 +550,12 @@ function startLevel(n){
   }
   ltTimer=lvl.biome.weather==='storm'?2+rnd()*3:9;
   const _fl=lvl.biome.flavor[(rnd()*lvl.biome.flavor.length)|0];
-  for(const t of lvl.mix){
-    const f=(rnd()*lvl.floors)|0;let x=(60+rnd()*(lvl.width-90))|0;
-    if(f===lvl.start.f&&Math.abs(x-lvl.start.x)<150)x=clamp(x+(lvl.start.x<lvl.width/2?150:-150),30,lvl.width-30);
-    spawnZombie(t,x,f);}
-  killsLeft=zombies.length;
+  /* split the roster into waves so a long level keeps feeding you targets */
+  const nw=lvl.waves||1,per=Math.ceil(lvl.mix.length/nw),groups=[];
+  for(let i=0;i<lvl.mix.length;i+=per)groups.push(lvl.mix.slice(i,i+per));
+  wavePool=groups.slice(1);waveLeft=wavePool.length;waveAt=0;
+  for(const t of groups[0])spawnSomewhere(t);
+  killsLeft=lvl.mix.length;
   extract={x:lvl.ext.x,f:lvl.ext.f,open:false};
   cam.x=lvl.width/2;cam.y=worldH/2;cam.z=fitZ();
   cine={mode:'intro',t:0,timer:16+Math.random()*8};
@@ -557,6 +565,19 @@ function startLevel(n){
     'You found a running truck. Floor it and take them with you.');
   else toast('DAY '+SV.day+' — '+lvl.biome.name,3.2,_fl);
 }
+function spawnSomewhere(t,minGap){
+  const gap=minGap||150;
+  const f=(rnd()*lvl.floors)|0;let x=(60+rnd()*(lvl.width-90))|0;
+  const ax=P?P.x:lvl.start.x,af=P?P.f:lvl.start.f;
+  if(f===af&&Math.abs(x-ax)<gap)x=clamp(x+(ax<lvl.width/2?gap:-gap),30,lvl.width-30);
+  spawnZombie(t,x,f);}
+function releaseWave(){
+  if(!wavePool.length)return;
+  const g=wavePool.shift();waveLeft=wavePool.length;waveAt++;
+  for(const t of g)spawnSomewhere(t,190);
+  sfx('scream');shake=Math.max(shake,3);
+  toast('MORE COMING \u2014 WAVE '+(waveAt+1),2.6,
+    g.length+' more between you and the extraction.');}
 function spawnZombie(t,x,f){
   const B=ZDEF[t];
   zombies.push({t,spr:B.spr,x,f,y:groundY(f),hp:B.hp*lvl.hpMult,maxHp:B.hp*lvl.hpMult,
@@ -566,6 +587,15 @@ function spawnZombie(t,x,f){
     dir:Math.random()<.5?-1:1,atkT:0,spitT:1+Math.random()*2,anim:Math.random()*10,
     flash:0,rageT:0,coolT:0,fuseT:-1,climb:null,burn:0,repathT:0,dashT:0,lungeT:1+Math.random()*2});
 }
+
+/* ---------------- turbo smash ---------------- */
+function startTurbo(){
+  if(state!=='play')return;
+  if(turboT>0)return;
+  if(turbo<100){sfx('deny');itemToast('TURBO NOT CHARGED');return;}
+  turbo=0;turboT=2.6;
+  sfx('scream');flashT=0.12;shake=4;
+  itemToast('TURBO SMASH!');}
 
 /* ---------------- special weapons ---------------- */
 function itemToast(t){itemMsg=t;itemMsgT=1.6;}
@@ -737,6 +767,7 @@ function bindTap(id,fn){const el=document.getElementById(id);
   for(const ev of ['pointerup','pointercancel','pointerleave'])el.addEventListener(ev,off);}
 bindTap('btnAct',()=>handlePress('act'));
 bindTap('btnB',()=>handlePress('e'));
+bindTap('btnC',()=>handlePress('turbo'));
 
 /* ---------------- physical gamepads ---------------- */
 let gpHeld={},gpBtn={},gpNav=0,gpSeen=false;
@@ -768,6 +799,8 @@ function pollGamepad(){
   press(0,()=>handlePress('act'));
   press(9,()=>handlePress('act'));
   press(1,()=>handlePress('e'));
+  press(7,()=>handlePress('turbo'));
+  press(10,()=>handlePress('turbo'));
   press(2,()=>handlePress('1'));
   press(3,()=>handlePress('2'));
   press(4,()=>handlePress('3'));
@@ -835,6 +868,7 @@ function handlePress(k){
   if(state==='travel'){travelPress(k);return;}
   if(state==='shop'){shopPress(k);return;}
   if(state==='play'&&(k==='1'||k==='2'||k==='3'||k==='4')){useItem(IKEYS[+k-1]);return;}
+  if(state==='play'&&(k==='shift'||k==='turbo')){startTurbo();return;}
   if(state==='play'&&k==='e'){const r=IKEYS.filter(i=>SV.items[i]>0);
     if(r.length)useItem(r[0]);else{sfx('deny');itemToast('NO SPECIALS LEFT');}return;}
   if(state==='play'&&(k==='q'||k==='act'))cycleWeapon();
@@ -919,13 +953,15 @@ function update(dt){
   punchX=clamp(punchX-punchX*Math.min(1,dt*14),-5,5);
   punchY=clamp(punchY-punchY*Math.min(1,dt*14),-5,5);
   if(comboT>0){comboT-=dt;if(comboT<=0)combo=0;}
+  for(let i=lensBlood.length-1;i>=0;i--){
+    lensBlood[i].t-=dt;if(lensBlood[i].t<=0)lensBlood.splice(i,1);}
   if(flashT>0)flashT-=dt;
   for(let i=rings.length-1;i>=0;i--){rings[i].r+=90*dt;rings[i].t-=dt;if(rings[i].t<=0)rings.splice(i,1);}
   for(let i=lights.length-1;i>=0;i--){lights[i].t-=dt;if(lights[i].t<=0)lights.splice(i,1);}
   const frozen=cine.mode==='intro';
 
   /* --- player --- */
-  const spd=P.drive?126:52;
+  const spd=P.drive?126:(turboT>0?142:52);
   if(!frozen){
     if(P.climb){
       P.y+=P.climb.dirn*46*dt;P.anim+=dt*8;
@@ -945,6 +981,29 @@ function update(dt){
     }
   }
   if(P.hurtT>0)P.hurtT-=dt;
+  /* --- turbo: charge, then plough through the horde --- */
+  if(!frozen){
+    if(turboT>0){
+      turboT=Math.max(0,turboT-dt);
+      P.anim+=dt*22;
+      for(let q=0;q<3;q++)parts.push({x:P.x-P.dir*(4+Math.random()*12),y:P.y-4-Math.random()*14,
+        vx:-P.dir*(80+Math.random()*140),vy:(Math.random()-0.5)*30,life:.28,
+        c:Math.random()<.5?'rgba(255,220,140,0.7)':'rgba(255,140,60,0.55)',s:1});
+      lights.push({x:P.x,y:P.y-9,r:34,t:.05});
+      for(const z of zombies.slice()){
+        if(z.hp<=0||z.f!==P.f)continue;
+        if(Math.abs(z.x-P.x)>11+5*z.scale)continue;
+        z.hp-=260;z.flash=.15;
+        z.x+=P.dir*10;z.dir=-P.dir;
+        gore(z.x,zMid(z),z.f,P.dir,18);
+        shake=Math.max(shake,4);hitStop=Math.max(hitStop,0.03);
+        if(z.hp<=0)killZombie(z);}
+    }else if(turbo<100){
+      turbo=Math.min(100,turbo+dt*1.6);
+      if(turbo>=100&&!turboRung){turboRung=1;sfx('combo');itemToast('TURBO READY \u2014 SHIFT');}
+    }
+    if(turbo<100)turboRung=0;
+  }
   /* --- truck: run them down --- */
   if(P.drive&&!frozen){
     P.ramT-=dt;
@@ -1223,6 +1282,9 @@ function update(dt){
       vy:-30-Math.random()*20,life:.3,c:'#ffd76a',s:1});
     if(pr.fuse<=0)popBarrel(pr);}
 
+  /* --- reinforcements --- */
+  if(!frozen&&wavePool.length&&zombies.length<=3&&killsLeft>0)releaseWave();
+
   /* --- extraction --- */
   if(killsLeft<=0){
     if(!extract.open){extract.open=true;flashT=0.25;sfx('lvl');
@@ -1257,6 +1319,28 @@ function explode(x,y,f,r,pd,zd){
     if(pr.vol&&!pr.gone&&pr.f===f&&Math.abs(pr.x-x)<r&&pr.fuse<0)
       pr.fuse=0.10+Math.random()*0.22;
 }
+/* one place for all the wet stuff: spray, pooling, and screen splatter */
+function gore(x,y,f,dirn,amount){
+  const gy=groundY(f);
+  for(let i=0;i<amount;i++){
+    const spread=(Math.random()-0.5)*1.5;
+    parts.push({x,y,
+      vx:dirn*(60+Math.random()*230)+spread*70,
+      vy:-Math.random()*150+30,
+      life:.5+Math.random()*.7,
+      c:Math.random()<.72?(Math.random()<.5?'#8f2020':'#6d1414'):'#6fae5c',
+      s:Math.random()<.3?3:2,g:1,fy:gy,splat:1});}
+  if(decals.length<400)
+    decals.push({x:x-6-Math.random()*10,y:gy-1,w:10+Math.random()*18,
+      c:'rgba(96,18,18,'+(0.35+Math.random()*0.3).toFixed(2)+')'});
+  /* blood on the lens when it happens right in your face */
+  const d=Math.hypot(P.x-x,P.y-y);
+  if(d<34&&lensBlood.length<26){
+    const n=1+(Math.random()*3|0);
+    for(let i=0;i<n;i++)lensBlood.push({
+      x:clamp(scrX(x)+(Math.random()-0.5)*70,4,W-4),
+      y:clamp(scrY(y)+(Math.random()-0.5)*60,4,H-4),
+      r:1.5+Math.random()*4.5,t:2.2+Math.random()*1.8,max:4});}}
 function killZombie(z){
   if(z.dead)return;z.dead=true;
   killsLeft--;sfx('dead');
@@ -1266,6 +1350,7 @@ function killZombie(z){
   punchX=clamp(punchX-Math.sign(z.x-P.x)*(heavy?2.2:0.6),-5,5);
   /* chained kills pay better */
   combo++;comboT=2.6;
+  if(turboT<=0)turbo=Math.min(100,turbo+(heavy?18:6));
   if(combo>comboBest)comboBest=combo;
   if(combo===3||combo===6||combo===10||combo===16)sfx('combo');
   const mult=1+Math.min(combo-1,20)*0.05;
@@ -1278,22 +1363,21 @@ function killZombie(z){
       vy:-Math.random()*70,life:.8,c:'rgba(150,200,90,0.75)',s:2});}
   if(z.t==='exploder'){explode(z.x,zMid(z),z.f,26,20,60);return;}
   if(z.t==='abom'){explode(z.x,zMid(z),z.f,42,34,120);flashT=0.25;return;}
-  /* massive overkill tears them apart instead of leaving a body */
-  const gib=z.hp<-Math.max(14,z.maxHp*0.55);
-  const np=gib?26:10;
-  for(let p=0;p<np;p++)parts.push({x:z.x,y:zMid(z),
-    vx:(Math.random()-0.5)*(gib?230:110),vy:-Math.random()*(gib?160:90),
-    life:gib?.85:.6,c:Math.random()<.5?'#6fae5c':'#8f2020',
-    s:gib&&Math.random()<.4?3:2,g:1,fy:groundY(z.f),splat:1});
+  /* overkill tears them apart instead of leaving a body */
+  const gib=z.hp<-Math.max(10,z.maxHp*0.35);
+  gore(z.x,zMid(z),z.f,Math.sign(z.x-P.x)||1,gib?34:16);
   if(gib){
     shake=Math.max(shake,3.5);
-    if(decals.length<200)decals.push({x:z.x-11,y:groundY(z.f)-1,w:22,c:'rgba(80,16,16,0.6)'});
+    for(let p=0;p<10;p++)parts.push({x:z.x,y:zMid(z),vx:(Math.random()-0.5)*260,
+      vy:-Math.random()*190,life:1.0,c:'#4a5f38',s:3,g:1,fy:groundY(z.f),splat:1});
+    if(decals.length<400)decals.push({x:z.x-14,y:groundY(z.f)-1,w:28,c:'rgba(74,12,12,0.66)'});
     return;}
   corpses.push({x:z.x,f:z.f,spr:z.spr,vr:z.vr,dir:z.dir,scale:z.scale,t:7,cr:z.spr==='crawler'});
   if(z.t==='boss'){shake=6;sfx('boom');flashT=0.2;}
 }
 function hurtPlayer(d){
   if(d<=0||P.hurtT>0)return;
+  if(turboT>0)return;   /* untouchable mid-smash */
   P.hp-=d;P.hurtT=0.5;shake=3;sfx('hurt');
   for(let p=0;p<5;p++)parts.push({x:P.x,y:P.y-9,vx:(Math.random()-0.5)*80,vy:-Math.random()*60,
     life:.5,c:'#c03030',s:1,g:1,fy:P.climb?P.y+30:P.y});
@@ -1352,6 +1436,13 @@ function render(){
   ctx.restore();
   drawLighting();
   ctx.fillStyle=lvl.biome.tint;ctx.fillRect(0,0,W,H);
+  /* blood on the camera lens */
+  for(const b of lensBlood){
+    const a=Math.min(1,b.t/1.2)*0.62;
+    ctx.fillStyle='rgba(112,14,14,'+a.toFixed(3)+')';
+    ctx.beginPath();ctx.ellipse(b.x,b.y,b.r,b.r*0.78,b.r,0,7);ctx.fill();
+    ctx.fillStyle='rgba(160,30,30,'+(a*0.5).toFixed(3)+')';
+    ctx.fillRect(b.x-b.r*0.3,b.y-b.r*0.3,1,1);}
   if(P&&P.hp>0&&P.hp<SV.maxHp*0.32){
     const sev=1-P.hp/(SV.maxHp*0.32),
       pulse=0.30+0.22*Math.sin(frame*(0.14+sev*0.16));
@@ -1790,6 +1881,12 @@ function drawWorld(){
   }else{const fr=P.climb?((P.anim*2|0)%2?0:2):(P.vx!==0?(P.anim*2|0)%3:1);
    const spr=SOL[fr];
    if(!P.climb){ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(P.x-4,P.y-1,8,2);}
+   if(turboT>0)for(let t=1;t<=3;t++){
+     ctx.save();ctx.globalAlpha=0.30/t;
+     ctx.translate(px(P.x-P.dir*t*7),px(P.y));
+     if(P.dir<0)ctx.scale(-1,1);
+     ctx.drawImage(spr,-spr.width/2,-spr.height);
+     ctx.restore();}
    ctx.save();ctx.translate(px(P.x),px(P.y));
    if(P.dir<0)ctx.scale(-1,1);
    if(P.hurtT>0&&(frame>>2)%2)ctx.globalAlpha=0.4;
@@ -1937,6 +2034,11 @@ function drawPanel(x,y,w,h){
   ctx.fillStyle='rgba(8,11,17,0.88)';ctx.fillRect(x,y,w,h);
   ctx.strokeStyle='rgba(140,255,160,0.22)';ctx.lineWidth=1;
   ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);}
+const btnCEl=document.getElementById('btnC');
+let btnCRdy=false;
+function syncTurboBtn(){
+  const r=(state==='play'&&turbo>=100&&turboT<=0);
+  if(r!==btnCRdy){btnCRdy=r;btnCEl.classList.toggle('rdy',r);}}
 function drawItemBar(){
   for(let i=0;i<IKEYS.length;i++){
     const k=IKEYS[i],r=ibarRect(i),n=SV.items[k],hot=n>0;
@@ -1970,19 +2072,26 @@ function drawStragglers(){
 function drawHUD(){
   ctx.textAlign='left';ctx.font='bold 10px monospace';
   /* left: health + cash */
-  ctx.fillStyle='rgba(10,12,18,0.7)';ctx.fillRect(3,2,88,30);
+  ctx.fillStyle='rgba(10,12,18,0.7)';ctx.fillRect(3,2,88,42);
   bar(7,7,74,8,P.hp/SV.maxHp,P.hp>SV.maxHp*0.3?'#4fd05f':'#ff6a4a','#3a1414');
   ctx.fillStyle='#dfe';ctx.fillText((P.drive?'HULL ':'HP ')+Math.ceil(P.hp),10,14.5);
   ctx.fillStyle='#9fff9f';ctx.fillText('$'+SV.cash,7,27);
+  {const live=turboT>0,rdy=turbo>=100;
+   bar(7,32,74,7,live?turboT/2.6:turbo/100,
+     live?'#ff8a3a':(rdy?'#ffd76a':'#5a8fd0'),'#161a24');
+   ctx.textAlign='center';ctx.font='bold 7px monospace';
+   ctx.fillStyle=live?'#2a1408':(rdy?'#2a2408':'rgba(200,220,255,0.75)');
+   ctx.fillText(live?'SMASHING':(rdy?'TURBO READY':'TURBO '+Math.floor(turbo)+'%'),44,37.5);
+   ctx.textAlign='left';ctx.font='bold 10px monospace';}
   if(combo>=3){
     const a=clamp(comboT/0.7,0,1);
     ctx.textAlign='left';ctx.font='bold 12px monospace';
     ctx.fillStyle='rgba(255,215,106,'+a+')';
-    ctx.fillText('x'+combo+' CHAIN',7,46);
+    ctx.fillText('x'+combo+' CHAIN',7,58);
     ctx.font='8px monospace';
     ctx.fillStyle='rgba(159,255,159,'+a+')';
-    ctx.fillText('+'+Math.round(Math.min(combo-1,20)*5)+'% cash',7,56);
-    bar(7,59,62,3,clamp(comboT/2.6,0,1),'#ffd76a','rgba(0,0,0,0.45)');}
+    ctx.fillText('+'+Math.round(Math.min(combo-1,20)*5)+'% cash',7,68);
+    bar(7,71,62,3,clamp(comboT/2.6,0,1),'#ffd76a','rgba(0,0,0,0.45)');}
   /* right: day + remaining */
   ctx.fillStyle='rgba(10,12,18,0.7)';ctx.fillRect(W-91,2,88,30);
   ctx.textAlign='right';ctx.fillStyle='#cfd6ff';
@@ -1991,6 +2100,7 @@ function drawHUD(){
   ctx.fillText(killsLeft>0?killsLeft+' LEFT':'ROUTE OPEN!',W-7,27);
   /* top centre: special weapons */
   drawItemBar();
+  syncTurboBtn();
   drawStragglers();
   const boss=zombies.find(z=>z.t==='boss'||z.t==='abom');
   if(boss){ctx.textAlign='center';ctx.fillStyle='#ffb0a0';ctx.font='bold 10px monospace';
@@ -2056,7 +2166,7 @@ function drawMenu(){
   ctx.fillStyle='#dfe6ee';ctx.font='10px monospace';
   ctx.fillText('14 biomes \u00b7 9 zombie types \u00b7 highway runs \u00b7 endless.',W/2,80);
   ctx.font='9px monospace';ctx.fillStyle='#9fb0c4';
-  ctx.fillText('Stick or gamepad \u00b7 auto-fire \u00b7 A swaps gun \u00b7 B deploys',W/2,95);
+  ctx.fillText('Auto-fire \u00b7 A swaps gun \u00b7 B deploys \u00b7 TURBO ploughs the horde',W/2,95);
   const items=menuItems();
   if(menuSel>=items.length)menuSel=0;
   const pw=252,pnx=(W-pw)/2,ph=items.length*MENU_STEP+8;
