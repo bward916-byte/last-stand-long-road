@@ -9,20 +9,31 @@
     font-family:'Courier New',monospace;-webkit-user-select:none;user-select:none}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#07080c}
-  #pad{position:fixed;left:10px;bottom:14px;display:grid;grid-template-columns:56px 56px 56px;
-    grid-template-rows:56px 56px;gap:6px;z-index:5}
-  .pbtn{background:rgba(120,200,120,.10);border:2px solid rgba(140,255,160,.35);border-radius:10px;
-    color:#9f9;font-size:22px;display:flex;align-items:center;justify-content:center;
+  /* analog thumbstick (left) */
+  #stick{position:fixed;left:16px;bottom:18px;width:132px;height:132px;border-radius:50%;
+    background:radial-gradient(circle at 50% 42%,rgba(120,200,120,.13),rgba(60,110,70,.05) 70%);
+    border:2px solid rgba(140,255,160,.26);z-index:5;touch-action:none;
     -webkit-tap-highlight-color:transparent}
-  .pbtn:active,.pbtn.on{background:rgba(120,255,140,.30)}
-  #btnUp{grid-column:2;grid-row:1}#btnL{grid-column:1;grid-row:2}
-  #btnDn{grid-column:2;grid-row:2}#btnR{grid-column:3;grid-row:2}
-  #actBtns{position:fixed;right:12px;bottom:20px;display:flex;flex-direction:column;gap:10px;z-index:5}
-  .abtn{width:70px;height:70px;border-radius:50%;background:rgba(255,90,60,.14);
-    border:2px solid rgba(255,140,90,.45);color:#fca;font-size:12px;font-weight:bold;
-    display:flex;align-items:center;justify-content:center;text-align:center;
-    -webkit-tap-highlight-color:transparent}
-  .abtn:active{background:rgba(255,120,80,.35)}
+  #stick.on{border-color:rgba(160,255,180,.5)}
+  #stick i{position:absolute;width:0;height:0;border:5px solid transparent;opacity:.30}
+  #stick i.n{top:6px;left:calc(50% - 5px);border-bottom-color:#8f9}
+  #stick i.s{bottom:6px;left:calc(50% - 5px);border-top-color:#8f9}
+  #stick i.w{left:6px;top:calc(50% - 5px);border-right-color:#8f9}
+  #stick i.e{right:6px;top:calc(50% - 5px);border-left-color:#8f9}
+  #nub{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;
+    border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(180,255,200,.42),rgba(90,190,120,.26));
+    border:2px solid rgba(170,255,190,.6);box-shadow:0 0 14px rgba(120,255,150,.22);
+    pointer-events:none;will-change:transform}
+  /* face buttons (right), laid out like a pad */
+  #actBtns{position:fixed;right:14px;bottom:16px;width:142px;height:132px;z-index:5}
+  .abtn{position:absolute;border-radius:50%;font-weight:bold;text-align:center;line-height:1.15;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent}
+  #btnAct{right:2px;bottom:22px;width:80px;height:80px;font-size:13px;
+    background:rgba(255,90,60,.16);border:2px solid rgba(255,140,90,.5);color:#fca}
+  #btnB{right:78px;bottom:64px;width:60px;height:60px;font-size:10px;
+    background:rgba(90,160,255,.15);border:2px solid rgba(120,190,255,.5);color:#bdf}
+  .abtn:active,.abtn.on{filter:brightness(1.9)}
   /* bottom-docked menu bar used on the ARMORY / ROAD screens so the
      movement D-pad never sits on top of the item list */
   #menuPad{position:fixed;left:0;right:0;bottom:0;height:74px;box-sizing:border-box;
@@ -38,7 +49,7 @@
   .mbtn:active,.mbtn.on{background:rgba(120,255,140,.30)}
   #mbOk{background:rgba(255,90,60,.14);border-color:rgba(255,140,90,.5);color:#fca;font-size:14px}
   #mbOk:active,#mbOk.on{background:rgba(255,120,80,.35)}
-  body.uimenu #pad,body.uimenu #actBtns{display:none}
+  body.uimenu #stick,body.uimenu #actBtns{display:none}
   body.uimenu #menuPad{display:flex}
   #touchUI{display:none}
   @media (pointer:coarse){#touchUI{display:block}}
@@ -47,13 +58,12 @@
 <body>
 <div id="wrap"><canvas id="cv"></canvas></div>
 <div id="touchUI">
-  <div id="pad">
-    <div class="pbtn" id="btnUp">▲</div>
-    <div class="pbtn" id="btnL">◀</div>
-    <div class="pbtn" id="btnDn">▼</div>
-    <div class="pbtn" id="btnR">▶</div>
+  <div id="stick"><i class="n"></i><i class="s"></i><i class="w"></i><i class="e"></i>
+    <div id="nub"></div></div>
+  <div id="actBtns">
+    <div class="abtn" id="btnB">DEPLOY</div>
+    <div class="abtn" id="btnAct">SWAP<br>OK</div>
   </div>
-  <div id="actBtns"><div class="abtn" id="btnAct">SWAP<br>OK</div></div>
   <div id="menuPad">
     <div class="mbtn" id="mbUp">&#9650;</div>
     <div class="mbtn" id="mbDn">&#9660;</div>
@@ -577,13 +587,77 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;
   if(['arrowup','arrowdown',' '].includes(k))e.preventDefault();
   handlePress(k);});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;if(e.key===' ')keys['act']=false;});
-function bindTouch(id,k){const el=document.getElementById(id);
-  const on=e=>{e.preventDefault();keys[k]=true;el.classList.add('on');if(k==='act')handlePress('act');ac();};
-  const off=e=>{e.preventDefault();keys[k]=false;el.classList.remove('on');};
-  el.addEventListener('touchstart',on);el.addEventListener('touchend',off);
-  el.addEventListener('touchcancel',off);el.addEventListener('mousedown',on);el.addEventListener('mouseup',off);}
-bindTouch('btnL','left');bindTouch('btnR','right');bindTouch('btnUp','up');
-bindTouch('btnDn','down');bindTouch('btnAct','act');
+/* ---------------- analog thumbstick ---------------- */
+const stickEl=document.getElementById('stick'),nubEl=document.getElementById('nub');
+let stickId=null;
+const STICK_R=46,STICK_DZ=13;
+function stickAim(dx,dy){
+  const m=Math.hypot(dx,dy);
+  if(m>STICK_R){dx=dx/m*STICK_R;dy=dy/m*STICK_R;}
+  nubEl.style.transform='translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px)';
+  /* the horizontal deadzone is tighter so ladders don't eat your run */
+  keys['left']=dx<-STICK_DZ;keys['right']=dx>STICK_DZ;
+  keys['up']=dy<-STICK_DZ*1.35;keys['down']=dy>STICK_DZ*1.35;}
+function stickOff(){
+  stickId=null;stickEl.classList.remove('on');
+  nubEl.style.transform='translate(0,0)';
+  keys['left']=keys['right']=keys['up']=keys['down']=false;}
+function stickAt(e){
+  const r=stickEl.getBoundingClientRect();
+  stickAim(e.clientX-(r.left+r.width/2),e.clientY-(r.top+r.height/2));}
+stickEl.addEventListener('pointerdown',e=>{
+  e.preventDefault();ac();stickId=e.pointerId;stickEl.classList.add('on');
+  try{stickEl.setPointerCapture(e.pointerId);}catch(err){}
+  stickAt(e);});
+stickEl.addEventListener('pointermove',e=>{
+  if(e.pointerId!==stickId)return;e.preventDefault();stickAt(e);});
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])
+  stickEl.addEventListener(ev,e=>{if(e.pointerId===stickId)stickOff();});
+/* ---------------- face buttons ---------------- */
+function bindTap(id,fn){const el=document.getElementById(id);
+  const on=e=>{e.preventDefault();el.classList.add('on');ac();fn();};
+  const off=()=>el.classList.remove('on');
+  el.addEventListener('pointerdown',on);
+  for(const ev of ['pointerup','pointercancel','pointerleave'])el.addEventListener(ev,off);}
+bindTap('btnAct',()=>handlePress('act'));
+bindTap('btnB',()=>handlePress('e'));
+
+/* ---------------- physical gamepads ---------------- */
+let gpHeld={},gpBtn={},gpNav=0,gpSeen=false;
+function pollGamepad(){
+  if(!navigator.getGamepads)return;
+  let gp=null;
+  const list=navigator.getGamepads();
+  for(let i=0;i<list.length;i++)if(list[i]&&list[i].connected){gp=list[i];break;}
+  if(!gp)return;
+  if(!gpSeen){gpSeen=true;itemMsg='CONTROLLER CONNECTED';itemMsgT=2.2;}
+  const ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=0.35;
+  const b=i=>!!(gp.buttons[i]&&gp.buttons[i].pressed);
+  const dir={left:ax<-dz||b(14),right:ax>dz||b(15),up:ay<-dz||b(12),down:ay>dz||b(13)};
+  if(state==='play'){
+    /* only clear the keys the pad itself set, so a keyboard still works */
+    for(const k in gpHeld)if(gpHeld[k]&&!dir[k])keys[k]=false;
+    for(const k in dir)if(dir[k])keys[k]=true;
+    gpHeld=dir;
+  }else{
+    for(const k in gpHeld)if(gpHeld[k])keys[k]=false;
+    gpHeld={};
+    gpNav-=1/60;
+    if(dir.up||dir.down){
+      if(gpNav<=0){handlePress(dir.up?'up':'down');gpNav=gpBtn.nav?0.14:0.34;gpBtn.nav=1;}
+    }else gpBtn.nav=0;
+  }
+  /* edge-triggered buttons: A confirm, B deploy, X/Y/LB/RB = specials 1-4 */
+  const press=(i,fn)=>{const now=b(i);if(now&&!gpBtn[i])fn();gpBtn[i]=now;};
+  press(0,()=>handlePress('act'));
+  press(9,()=>handlePress('act'));
+  press(1,()=>handlePress('e'));
+  press(2,()=>handlePress('1'));
+  press(3,()=>handlePress('2'));
+  press(4,()=>handlePress('3'));
+  press(5,()=>handlePress('4'));
+}
+addEventListener('gamepadconnected',()=>{gpSeen=false;});
 /* menu-bar buttons: fire on press, auto-repeat while held (arrows only) */
 function bindMenuBtn(id,k,repeat){const el=document.getElementById(id);
   let d=0,r=0;
@@ -645,7 +719,8 @@ function handlePress(k){
   if(state==='travel'){travelPress(k);return;}
   if(state==='shop'){shopPress(k);return;}
   if(state==='play'&&(k==='1'||k==='2'||k==='3'||k==='4')){useItem(IKEYS[+k-1]);return;}
-  if(state==='play'&&k==='e'){const r=IKEYS.filter(i=>SV.items[i]>0);if(r.length)useItem(r[0]);return;}
+  if(state==='play'&&k==='e'){const r=IKEYS.filter(i=>SV.items[i]>0);
+    if(r.length)useItem(r[0]);else{sfx('deny');itemToast('NO SPECIALS LEFT');}return;}
   if(state==='play'&&(k==='q'||k==='act'))cycleWeapon();
   if(k==='m')muted=!muted;
 }
@@ -679,6 +754,7 @@ function scrY(wy){return (wy-cam.y)*cam.z+H/2;}
 let last=0;
 function loop(ts){requestAnimationFrame(loop);
   const dt=Math.min((ts-last)/1000,0.05);last=ts;frame++;
+  pollGamepad();
   if(state==='play')update(dt);
   render();}
 requestAnimationFrame(loop);
@@ -1765,7 +1841,7 @@ function drawMenu(){
   ctx.fillStyle='#dfe6ee';ctx.font='10px monospace';
   ctx.fillText('14 biomes \u00b7 9 zombie types \u00b7 highway runs \u00b7 endless.',W/2,80);
   ctx.font='9px monospace';ctx.fillStyle='#9fb0c4';
-  ctx.fillText('Auto-fire \u00b7 Q swaps gun \u00b7 1-4 or top bar for specials',W/2,95);
+  ctx.fillText('Stick or gamepad \u00b7 auto-fire \u00b7 A swaps gun \u00b7 B deploys',W/2,95);
   const items=menuItems();
   if(menuSel>=items.length)menuSel=0;
   const pw=252,pnx=(W-pw)/2,ph=items.length*MENU_STEP+8;
