@@ -515,6 +515,23 @@ const BIOMES=[
           'A slot machine pays out to an empty stool, over and over.']}];
 /* highway runs shouldn't burn a biome slot, or the stop they land on
    never appears until the next lap of the list */
+/* --- time of day: rolled per stop, drives sky, sun, tint and shadows --- */
+function mixHex(a,b,t){
+  const A=parseInt(a.slice(1),16),B2=parseInt(b.slice(1),16);
+  const r=((A>>16)&255)+((((B2>>16)&255)-((A>>16)&255))*t),
+        g=((A>>8)&255)+((((B2>>8)&255)-((A>>8)&255))*t),
+        bl=(A&255)+(((B2&255)-(A&255))*t);
+  return '#'+((r<<16&0xff0000)|(g<<8&0xff00)|(bl&0xff)|0x1000000).toString(16).slice(1);}
+const TODS={
+ dawn: {top:'#ffb070',bot:'#ffd9a0',mix:0.34,tint:'rgba(255,150,80,0.09)',
+        sun:{a:0.14,warm:1},shDir:1, shLen:2.6,shA:0.34,dark:-0.06},
+ day:  {top:'#9ec8e8',bot:'#e8f0f8',mix:0.22,tint:'rgba(200,225,255,0.05)',
+        sun:{a:0.5,warm:0},shDir:0.3,shLen:0.8,shA:0.26,dark:-0.12},
+ dusk: {top:'#c85a3a',bot:'#ffb060',mix:0.38,tint:'rgba(230,110,60,0.11)',
+        sun:{a:0.86,warm:1},shDir:-1,shLen:2.6,shA:0.36,dark:-0.02},
+ night:{top:'#080c1a',bot:'#141d33',mix:0.46,tint:'rgba(40,60,120,0.13)',
+        sun:null,shDir:0.6,shLen:1.2,shA:0.42,dark:0.10}};
+function todFor(){return (lvl&&lvl.tod)?TODS[lvl.tod]:TODS.day;}
 function biomeIdx(n){
   let c=0;
   for(let i=1;i<n;i++)if(!isDrive(i))c++;
@@ -633,7 +650,13 @@ function levelCfg(n){
   /* gentler early HP ramp — the first stops were unwinnable with a pistol */
   const hpMult=n<=8?1+(n-1)*0.10:1.70+(n-8)*0.20;
   const waves=drive?1:(n<3?1:(n<8?2:3));
-  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves};
+  /* roll the hour; blood moons only rise on later night stops */
+  const todRoll=rnd(),tod=todRoll<0.28?'dawn':(todRoll<0.58?'day':(todRoll<0.80?'dusk':'night'));
+  let bloodMoon=false;
+  if(tod==='night'&&n>=6&&rnd()<0.35){bloodMoon=true;
+    const extra=Math.ceil(mix.length*0.35);
+    for(let i2=0;i2<extra;i2++)mix.push(mix[(rnd()*mix.length)|0]);}
+  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves,tod,bloodMoon};
 }
 
 /* ---------------- state ---------------- */
@@ -643,6 +666,7 @@ let P,zombies,bullets,spits,cash,parts,decals,corpses,rings,lights,ladders,props
     lvl,extract,killsLeft,routeMult=1,routeKind='mid',lastGain=0,skillSel=0,pauseSel=0,waveLeft=0,waveAt=-1,wavePool=[],turbo=0,turboT=0,bloodT=0,lensBlood=[],
     msg='',msgT=0,flavorLine='',shopSel=0,travelSel=0,menuSel=0,overSel=0,
     frame=0,shake=0,flashT=0,hitStop=0,punchX=0,punchY=0,combo=0,comboT=0,comboBest=0,turboRung=0,
+    finisher=null,
     lightning=0,ltTimer=8,worldH=0,event=null,eventDone=true,eventResult='';
 let cam={x:0,y:0,z:1},cine={mode:null,t:0,timer:14};
 function fitZ(){return Math.max(0.25,Math.min(W/(lvl.width+30),H/(worldH+26))*0.95);}
@@ -659,7 +683,7 @@ function startLevel(n){
     drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0};
   zombies=[];bullets=[];spits=[];cash=[];parts=[];decals=[];corpses=[];rings=[];lights=[];
   hazards=[];shake=0;flashT=0;hitStop=0;punchX=punchY=0;combo=0;comboT=0;
-  turbo=0;turboT=0;lensBlood=[];
+  turbo=0;turboT=0;lensBlood=[];finisher=null;
   throwns=[];fires=[];turrets=[];strikes=[];levelT=0;itemMsgT=0;
   ladders=[];
   for(let f=0;f<lvl.floors-1;f++){
@@ -712,7 +736,9 @@ function startLevel(n){
   cine={mode:'intro',t:0,timer:16+Math.random()*8};
   state='play';sfx('whoosh');
   setDrone(38+(BIOMES.indexOf(lvl.biome)%7)*4.5);
-  if(lvl.drive)toast('DAY '+SV.day+' — HIGHWAY RUN',3.4,
+  if(lvl.bloodMoon)toast('BLOOD MOON',3.6,
+    'They are worse tonight. The pay is double.');
+  else if(lvl.drive)toast('DAY '+SV.day+' — HIGHWAY RUN',3.4,
     'You found a running truck. Floor it and take them with you.');
   else toast('DAY '+SV.day+' — '+lvl.biome.name,3.2,_fl);
 }
@@ -1161,7 +1187,12 @@ function camUpdate(dt){
   if(lvl.width>hw*2)tx=clamp(tx,hw,lvl.width-hw);else tx=lvl.width/2;
   if(worldH>hh*2)ty=clamp(ty,hh,worldH-hh);else ty=worldH/2;
   if(lvl.biome.out)ty=gnd(P.x,0)-0.20*H/cam.z; /* sky up top, soil at the bottom edge */
-  const ps=Math.min(1,dt*4),zs=Math.min(1,dt*3);
+  if(finisher){tx=finisher.x;ty=finisher.y;tz=Math.min(1.7,BZ*1.5);
+    const hw2=W/(2*tz),hh2=H/(2*tz);
+    if(lvl.width>hw2*2)tx=clamp(tx,hw2,lvl.width-hw2);
+    if(worldH>hh2*2)ty=clamp(ty,hh2,worldH-hh2);}
+  const fs3=finisher?8:4;
+  const ps=Math.min(1,dt*fs3),zs=Math.min(1,dt*(finisher?6:3));
   cam.x+=(tx-cam.x)*ps;cam.y+=(ty-cam.y)*ps;cam.z+=(tz-cam.z)*zs;
 }
 function scrX(wx){return (wx-cam.x)*cam.z+W/2;}
@@ -1174,6 +1205,8 @@ function loop(ts){requestAnimationFrame(loop);
   pollGamepad();
   /* brief freeze on heavy impacts — makes hits land */
   let dts=dt;
+  if(finisher){finisher.t-=dt;
+    if(finisher.t<=0)finisher=null;else dts=dt*0.22;}
   if(hitStop>0){hitStop=Math.max(0,hitStop-dt);dts=dt*0.09;}
   if(state==='play')update(dts);
   render();}
@@ -1672,6 +1705,10 @@ function deathSfx(z){
 function killZombie(z){
   if(z.dead)return;z.dead=true;
   killsLeft--;deathSfx(z);
+  /* the last body on the road gets a moment */
+  if(killsLeft===0&&state==='play'){
+    finisher={x:z.x,y:zMid(z),t:1.15};
+    sfx('lvl');flashT=Math.max(flashT,0.10);}
   zombies.splice(zombies.indexOf(z),1);
   const heavy=z.t==='boss'||z.t==='abom'||z.t==='brute';
   hitStop=Math.max(hitStop,heavy?0.13:0.045);
@@ -1681,7 +1718,8 @@ function killZombie(z){
   if(turboT<=0)turbo=Math.min(100,turbo+(heavy?18:6)*(1+0.30*sk('adren')));
   if(combo>comboBest)comboBest=combo;
   if(combo===3||combo===6||combo===10||combo===16)sfx('combo');
-  const mult=(1+Math.min(combo-1,20)*0.05)*(routeMult||1)*(1+0.14*sk('scav'));
+  const mult=(1+Math.min(combo-1,20)*0.05)*(routeMult||1)*(1+0.14*sk('scav'))
+    *(lvl.bloodMoon?2:1);
   const n=heavy?6:(1+(Math.random()*2|0));
   const pot=Math.ceil(z.cash*mult);
   for(let i=0;i<n;i++)cash.push({x:z.x+(Math.random()-0.5)*16,y:gnd(z.x,z.f),f:z.f,v:Math.ceil(pot/n)});
@@ -1767,6 +1805,10 @@ function render(){
   ctx.restore();
   drawLighting();
   ctx.fillStyle=lvl.biome.tint;ctx.fillRect(0,0,W,H);
+  if(lvl.biome.out){const TD=todFor();
+    ctx.fillStyle=lvl.bloodMoon?'rgba(180,20,20,0.13)':TD.tint;
+    ctx.fillRect(0,0,W,H);
+    if(TD.dark>0){ctx.fillStyle='rgba(2,4,12,'+TD.dark+')';ctx.fillRect(0,0,W,H);}}
   /* blood on the camera lens */
   for(const b of lensBlood){
     const a=Math.min(1,b.t/1.2)*0.62;
@@ -1792,6 +1834,12 @@ function render(){
     g.addColorStop(0,'rgba(160,0,0,0)');g.addColorStop(1,'rgba(160,0,0,'+a+')');
     ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
   if(cine.mode){ctx.fillStyle='#000';ctx.fillRect(0,0,W,10);ctx.fillRect(0,H-10,W,10);}
+  if(finisher){
+    const a=Math.min(1,finisher.t*3);
+    ctx.fillStyle='rgba(0,0,0,'+(0.85*a)+')';
+    ctx.fillRect(0,0,W,16);ctx.fillRect(0,H-16,W,16);
+    ctx.fillStyle='rgba(255,215,106,'+(0.5*a)+')';
+    ctx.fillRect(0,16,W,1);ctx.fillRect(0,H-17,W,1);}
   if(state==='over')drawOverMenu();
   if(state==='pause')drawPauseMenu();
 }
@@ -1938,15 +1986,46 @@ function decoBand(id,top,gy,wd,f){
 function drawOutdoor(B){
   const gy=groundY(0),ltng=lightning>0&&(frame>>1)%3!==0;
   const vw=W/cam.z,left=cam.x-vw/2-20,right=cam.x+vw/2+20;
-  /* sky gradient (screen-height safe: draw well above/below) */
+  /* sky gradient blended toward the hour */
+  const TD=todFor(),bm=lvl.bloodMoon;
+  const sky0=bm?mixHex(B.sky[0],'#3a0a10',0.55):mixHex(B.sky[0],TD.top,TD.mix),
+        sky1=bm?mixHex(B.sky[1],'#701820',0.5):mixHex(B.sky[1],TD.bot,TD.mix);
   const sg=ctx.createLinearGradient(0,-140,0,gy);
-  sg.addColorStop(0,ltng?'#8a9ac8':B.sky[0]);sg.addColorStop(1,ltng?'#a8b4d0':B.sky[1]);
+  sg.addColorStop(0,ltng?'#8a9ac8':sky0);sg.addColorStop(1,ltng?'#a8b4d0':sky1);
   ctx.fillStyle=sg;ctx.fillRect(left,-160,right-left,gy+160);
-  /* moon / storm clouds */
-  if(B.weather==='none'||B.weather==='ash'||B.weather==='snow'){
-    ctx.fillStyle=B.weather==='ash'?'#c88a4a':'#e8ecff';
-    ctx.beginPath();ctx.arc(cam.x*0.9+120,-90+cam.y*0.1,9,0,7);ctx.fill();
-    ctx.fillStyle=B.sky[0];ctx.beginPath();ctx.arc(cam.x*0.9+124,-93+cam.y*0.1,8,0,7);ctx.fill();}
+  /* sun / moon / blood moon */
+  if(B.weather==='none'||B.weather==='ash'||B.weather==='snow'||B.weather==='drizzle'){
+    const sx0=cam.x*0.9;
+    if(bm){
+      const mx=sx0+150,my=-104+cam.y*0.1;
+      const halo=ctx.createRadialGradient(mx,my,4,mx,my,52);
+      halo.addColorStop(0,'rgba(255,60,50,0.5)');halo.addColorStop(1,'rgba(255,60,50,0)');
+      ctx.fillStyle=halo;ctx.fillRect(mx-52,my-52,104,104);
+      ctx.fillStyle='#c8302a';ctx.beginPath();ctx.arc(mx,my,15,0,7);ctx.fill();
+      ctx.fillStyle='rgba(90,14,14,0.55)';
+      ctx.beginPath();ctx.arc(mx-4,my-3,4,0,7);ctx.arc(mx+6,my+4,3,0,7);ctx.fill();
+    }else if(TD.sun){
+      /* the sun rides an arc: dawn low left, noon high, dusk low right */
+      const t=TD.sun.a,vw2=right-left,
+        sx=left+vw2*t,sy=-46-Math.sin(t*Math.PI)*74+cam.y*0.1,
+        warm=TD.sun.warm;
+      const halo=ctx.createRadialGradient(sx,sy,3,sx,sy,warm?46:30);
+      halo.addColorStop(0,warm?'rgba(255,190,110,0.55)':'rgba(255,250,225,0.4)');
+      halo.addColorStop(1,'rgba(255,190,110,0)');
+      ctx.fillStyle=halo;ctx.fillRect(sx-48,sy-48,96,96);
+      ctx.fillStyle=warm?'#ffcf8a':'#fff6dd';
+      ctx.beginPath();ctx.arc(sx,sy,warm?11:8,0,7);ctx.fill();
+    }else{
+      ctx.fillStyle=B.weather==='ash'?'#c88a4a':'#e8ecff';
+      ctx.beginPath();ctx.arc(sx0+120,-90+cam.y*0.1,9,0,7);ctx.fill();
+      ctx.fillStyle=sky0;ctx.beginPath();ctx.arc(sx0+124,-93+cam.y*0.1,8,0,7);ctx.fill();
+      /* a few stars on clear nights */
+      seed=SV.level*77;
+      ctx.fillStyle='rgba(230,238,255,0.7)';
+      for(let i=0;i<26;i++){
+        const stx=left+rnd()*(right-left),sty=-150+rnd()*90;
+        if(Math.random()<0.985)ctx.fillRect(stx,sty,1,1);}
+    }}
   else{
     ctx.fillStyle=ltng?'rgba(200,210,235,0.5)':'rgba(10,14,22,0.45)';
     const co=cam.x*0.15+frame*0.06;
@@ -2323,7 +2402,7 @@ function drawWorld(){
   for(const z of zombies){
     const fr=(z.anim*2|0),spr=sprFor(z,fr);
     const w=spr.width*z.scale,h=spr.height*z.scale;
-    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(z.x-w*0.3,z.y-1,w*0.6,2);
+    castShadow(z.x,z.y,w*0.62,14*z.scale);
     ctx.save();ctx.translate(px(z.x),px(z.y));
     if(z.dir<0)ctx.scale(-1,1);
     if(z.flash>0)ctx.globalAlpha=0.45;
@@ -2372,7 +2451,7 @@ function drawWorld(){
    ctx.restore();
   }else{const fr=P.climb?((P.anim*2|0)%2?0:2):(P.vx!==0?(P.anim*2|0)%3:1);
    const spr=SOL[fr];
-   if(!P.climb){ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(P.x-4,P.y-1,8,2);}
+   if(!P.climb)castShadow(P.x,P.air?gnd(P.x,P.f):P.y,9,15);
    if(turboT>0)for(let t=1;t<=3;t++){
      ctx.save();ctx.globalAlpha=0.30/t;
      ctx.translate(px(P.x-P.dir*t*7),px(P.y));
@@ -2458,6 +2537,21 @@ function drawWorld(){
   }
 }
 function lampOn(L){return !L.flick||Math.sin(frame*0.7+L.ph)>-0.7;}
+/* soft directional shadow: skews away from the sun, long at dawn/dusk */
+function castShadow(x,y,w,h2){
+  const TD=todFor();
+  if(!lvl.biome.out||lvl.bloodMoon){
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(x-w/2,y-1,w,2);return;}
+  const len=Math.min(h2*TD.shLen,34),dir=TD.shDir;
+  ctx.save();ctx.translate(x,y);
+  ctx.transform(1,0,-dir*0.85,0.28,0,0);
+  const g=ctx.createLinearGradient(0,0,0,-len);
+  g.addColorStop(0,'rgba(0,0,0,'+TD.shA+')');g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.ellipse(0,-len/2,w*0.55,len/2,0,0,7);ctx.fill();
+  ctx.restore();
+  ctx.fillStyle='rgba(0,0,0,'+(TD.shA*0.8)+')';
+  ctx.beginPath();ctx.ellipse(x,y,w*0.55,1.6,0,0,7);ctx.fill();}
 function drawLighting(){
   lx.setTransform(1,0,0,1,0,0);lx.globalCompositeOperation='source-over';
   lx.clearRect(0,0,W,H);
