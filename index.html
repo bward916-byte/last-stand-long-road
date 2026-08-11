@@ -212,6 +212,34 @@ function sfx(t){
     }
   }catch(e){}
 }
+/* ---- procedural score: a minor-pentatonic pulse that follows the fight ----
+   Intensity tracks how many of them are close. Calm is a sparse bass heartbeat
+   over the drone; a crowd brings in the kick, hats and a high arpeggio. */
+const MSCALE=[0,3,5,7,10];
+let mus={next:0,step:0,int:0};
+function musicTick(){
+  if(muted||!AC||state!=='play'||!P||!lvl)return;
+  let near=0;
+  for(const z of zombies)if(Math.abs(z.x-P.x)<140&&z.f===P.f)near++;
+  const tgt=clamp(near/5,0,1)*(lvl.bloodMoon?1:0.92)+(lvl.bloodMoon?0.08:0);
+  mus.int+=(tgt-mus.int)*0.04;
+  const t=AC.currentTime;
+  if(mus.next<t-0.5)mus.next=t;             /* resync after a pause */
+  const bpm=90+mus.int*46,spb=60/bpm/2;     /* eighth notes */
+  const root=49*Math.pow(2,(biomeIdx(SV.level)%10)/12)*(lvl.bloodMoon?0.5:1);
+  while(mus.next<t+0.14){
+    const st=mus.step%8,d=mus.next-t,I=mus.int;
+    if(st===0||st===4||(I>0.5&&st===6))
+      tone(root,root*0.99,spb*0.92,'triangle',0.045+0.05*I,d);
+    if(I>0.22&&(st===0||st===4))
+      tone(130,38,0.10,'sine',0.11*I,d);
+    if(I>0.40&&st%2===1)
+      burst(0.03,0.030*I,'highpass',6400,5200,1,d);
+    if(I>0.34&&st===4)
+      burst(0.09,0.05*I,'bandpass',1700,900,2,d);
+    if(I>0.62&&(st===2||st===5||st===7))
+      tone(root*4*Math.pow(2,MSCALE[(mus.step*3)%5]/12),root*4,spb*0.8,'square',0.026,d);
+    mus.next+=spb;mus.step++;}}
 /* low ambient bed, retuned per biome */
 function setDrone(hz){
   if(muted||!hz){stopDrone();return;}
@@ -687,22 +715,29 @@ function levelCfg(n){
   /* roll the hour; blood moons only rise on later night stops */
   const todRoll=rnd(),tod=todRoll<0.28?'dawn':(todRoll<0.58?'day':(todRoll<0.80?'dusk':'night'));
   /* some stops have a beacon to hold instead of a headcount */
-  let obj=null,holdNeed=0,holdX=0;
+  let obj=null,holdNeed=0,holdX=0,cageX=0;
   if(!drive&&floors===1&&n>=5&&rnd()<0.30){
     obj='holdout';holdNeed=Math.min(75,38+n*1.2)|0;
     holdX=(width*(0.45+rnd()*0.2))|0;}
+  else if(!drive&&floors===1&&n>=4&&rnd()<0.26){
+    obj='rescue';cageX=(width*(0.35+rnd()*0.4))|0;}
+  const caches=[];
+  if(!drive&&rnd()<0.45){
+    const nc=1+(rnd()<0.35?1:0);
+    for(let i2=0;i2<nc;i2++)
+      caches.push({x:(50+rnd()*(width-100))|0,f:(rnd()*floors)|0});}
   let bloodMoon=false;
   if(tod==='night'&&n>=6&&rnd()<0.35){bloodMoon=true;
     const extra=Math.ceil(mix.length*0.35);
     for(let i2=0;i2<extra;i2++)mix.push(mix[(rnd()*mix.length)|0]);}
-  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves,tod,bloodMoon,obj,holdNeed,holdX};
+  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves,tod,bloodMoon,obj,holdNeed,holdX,cageX,caches};
 }
 
 /* ---------------- state ---------------- */
 let state='menu';
 let P,zombies,bullets,spits,cash,parts,decals,corpses,rings,lights,ladders,props,lamps,hazards,fg=[],
     throwns=[],fires=[],turrets=[],strikes=[],ammoDrops=[],levelT=0,itemMsgT=0,itemMsg='',
-    holdT=0,holdStarted=false,holdWaveT=0,
+    holdT=0,holdStarted=false,holdWaveT=0,ally=null,cage=null,caches=[],prints=[],printD=0,rescueMsg='',
     lvl,extract,killsLeft,routeMult=1,routeKind='mid',lastGain=0,skillSel=0,pauseSel=0,loadSel=0,waveLeft=0,waveAt=-1,wavePool=[],turbo=0,turboT=0,bloodT=0,lensBlood=[],
     msg='',msgT=0,flavorLine='',shopSel=0,travelSel=0,menuSel=0,overSel=0,
     frame=0,shake=0,flashT=0,hitStop=0,punchX=0,punchY=0,combo=0,comboT=0,comboBest=0,turboRung=0,
@@ -726,6 +761,9 @@ function startLevel(n){
   turbo=0;turboT=0;lensBlood=[];finisher=null;
   throwns=[];fires=[];turrets=[];strikes=[];ammoDrops=[];levelT=0;itemMsgT=0;
   holdT=lvl.holdNeed||0;holdStarted=false;holdWaveT=0;
+  ally=null;cage=lvl.obj==='rescue'?{x:lvl.cageX,t:0,open:false}:null;
+  caches=(lvl.caches||[]).map(c=>({x:c.x,f:c.f,got:false}));
+  prints=[];printD=0;
   ladders=[];
   for(let f=0;f<lvl.floors-1;f++){
     const a=40+rnd()*(lvl.width*0.4),b=lvl.width*0.55+rnd()*(lvl.width*0.4-50);
@@ -779,6 +817,8 @@ function startLevel(n){
   setDrone(38+(BIOMES.indexOf(lvl.biome)%7)*4.5);
   if(lvl.obj==='holdout')toast('HOLD THE BEACON',3.6,
     'Stand at the tower for '+lvl.holdNeed+'s \u2014 or put them all down.');
+  else if(lvl.obj==='rescue')toast('SOMEONE IS ALIVE IN THERE',3.6,
+    'A survivor is caged up. Getting them out is worth real money.');
   else if(lvl.bloodMoon)toast('BLOOD MOON',3.6,
     'They are worse tonight. The pay is double.');
   else if(lvl.drive)toast('DAY '+SV.day+' — HIGHWAY RUN',3.4,
@@ -901,7 +941,7 @@ function enterTravel(){
   routeMult=1;routeKind='mid';SV.pending=0;
   SV.miles+=3+(Math.random()*5|0);
   event=Math.random()<0.8?rollEvent():null;
-  eventDone=!event;eventResult='';travelSel=1;
+  eventDone=!event;eventResult=rescueMsg||'';rescueMsg='';travelSel=1;
   state='travel';sfx('lvl');stopDrone();saveRun();
 }
 const LOAD_TOP=58,LOAD_STEP=26,DOLL_X=64;
@@ -1068,8 +1108,9 @@ function drawPauseMenu(){
       items[i].type==='continue'?'#7dffc8':(items[i].type==='camp'?'#ff8a7a':'#aeb6c4'));
   ctx.textAlign='center';ctx.font='9px monospace';ctx.fillStyle='#5a6472';
   ctx.fillText('ESC or the \u2016 button to resume',W/2,H-7);}
-function overItems(){return[
-  {type:'retry',label:'CONTINUE \u2014 RETRY DAY '+SV.day},
+function retryCost(){return SV.cash<80?0:Math.round(SV.cash*0.15);}
+function overItems(){const c=retryCost();return[
+  {type:'retry',label:'RETRY DAY '+SV.day+(c?' \u2014 COSTS $'+c:'')},
   {type:'camp',label:'ABANDON RUN'}];}
 function overPress(k){
   const items=overItems();
@@ -1079,7 +1120,8 @@ function overPress(k){
   overDo(items[overSel]);}
 function overDo(it){
   if(!it)return;
-  if(it.type==='retry'){SV.hp=SV.maxHp;sfx('lvl');startLevel(SV.level);return;}
+  if(it.type==='retry'){SV.cash-=retryCost();SV.hp=SV.maxHp;sfx('lvl');
+    startLevel(SV.pending||SV.level);return;}
   clearRun();menuSel=0;state='menu';sfx('deny');}
 /* --- how strong is the player, roughly, vs what a tier expects --- */
 function playerPower(){
@@ -1364,6 +1406,7 @@ let last=0;
 function loop(ts){requestAnimationFrame(loop);
   const dt=Math.min((ts-last)/1000,0.05);last=ts;frame++;
   pollGamepad();
+  try{musicTick();}catch(e){}
   /* brief freeze on heavy impacts — makes hits land */
   let dts=dt;
   if(finisher){finisher.t-=dt;
@@ -1581,6 +1624,9 @@ function update(dt){
         burn:wp.burn||0,boom:wp.boom||0});}
     parts.push({x:P.x-P.dir*2,y:by,vx:-P.dir*(20+Math.random()*20),vy:-50-Math.random()*30,
       life:1.1,c:'#d8b45a',s:1,g:1,fy:P.climb?P.y+30:P.y});
+    parts.push({x:P.x+P.dir*(wp.blen+2),y:by-1,vx:P.dir*(8+Math.random()*14),
+      vy:-8-Math.random()*10,life:.5+Math.random()*.3,
+      c:'rgba(190,190,200,0.'+(3+(Math.random()*2|0))+')',s:2});
   }
 
   /* --- bullets --- */
@@ -1871,6 +1917,59 @@ function update(dt){
         itemToast('+'+amt+' '+WEAPONS[best].name.split(' ')[0]+' AMMO');}
       ammoDrops.splice(i,1);}}
 
+  /* --- the cage and the one inside it --- */
+  if(!frozen&&cage&&!cage.open){
+    if(P.f===0&&Math.abs(P.x-cage.x)<15&&!P.climb){
+      cage.t+=dt;
+      if(Math.random()<0.4)parts.push({x:cage.x+(Math.random()-0.5)*10,y:gnd(cage.x,0)-10,
+        vy:-14,life:.3,c:'rgba(200,200,210,0.6)',s:1});
+      if(cage.t>=1.4){cage.open=true;sfx('clank');
+        ally={x:cage.x,f:0,y:gnd(cage.x,0),dir:1,fireT:0,anim:0};
+        toast('\u201cI can shoot. Let\u2019s move.\u201d',2.8,
+          'They fight beside you to the extraction.');}}
+    else cage.t=Math.max(0,cage.t-dt*2);}
+  if(!frozen&&ally){
+    const want=P.x-P.dir*16;
+    ally.dir=want>ally.x?1:-1;
+    if(Math.abs(want-ally.x)>4){ally.x+=ally.dir*46*dt;ally.anim+=dt*9;}
+    else ally.anim=0.6;
+    ally.x=clamp(ally.x,8,lvl.width-8);
+    ally.y=gnd(ally.x,0);ally.f=0;
+    ally.fireT-=dt;
+    let bz=null,bd2=95;
+    for(const z of zombies)if(z.hp>0&&z.f===0){
+      const dd=Math.abs(z.x-ally.x);if(dd<bd2){bd2=dd;bz=z;}}
+    if(bz&&ally.fireT<=0){ally.fireT=0.42;
+      ally.dir=bz.x>ally.x?1:-1;
+      const ay=ally.y-9,tt2=Math.max(bd2/280,0.05);
+      bullets.push({x:ally.x+ally.dir*6,y:ay,vx:ally.dir*280,
+        vy:clamp((zMid(bz)-ay)/tt2,bz.fly?-170:-70,70),dmg:7,life:0.45,pierce:0,
+        color:'#8fd0ff',trail:[]});
+      sfx('shot');ally.muzzleT=0.05;}
+    if(ally.muzzleT>0)ally.muzzleT-=dt;}
+  /* --- supply caches --- */
+  if(!frozen)for(const c of caches){
+    if(c.got)continue;
+    if(P.f===c.f&&!P.climb&&Math.abs(P.x-c.x)<12){
+      c.got=true;
+      const pay=60+SV.level*8;SV.cash+=pay;
+      let low=null,lf=2;
+      for(const k of WKEYS){
+        if(!SV.owned[k]||!AMMO_CAP[k]||typeof (SV.ammo&&SV.ammo[k])!=='number')continue;
+        const f3=SV.ammo[k]/AMMO_CAP[k];if(f3<lf){lf=f3;low=k;}}
+      if(low)ammoAdd(low,Math.round(AMMO_CAP[low]*0.20));
+      sfx('cash');itemToast('SUPPLY CACHE  +$'+pay);}}
+  /* --- footprints in soft ground --- */
+  if(!frozen&&!P.air&&!P.drive&&P.f===0&&Math.abs(P.vx)>10
+     &&(lvl.biome.para==='mountain'||lvl.biome.para==='dunes')){
+    printD+=Math.abs(P.vx)*dt;
+    if(printD>7){printD=0;
+      if(prints.length>80)prints.shift();
+      prints.push({x:P.x+((prints.length%2)?2:-2),y:gnd(P.x,0),t:9,
+        c:lvl.biome.para==='mountain'?'rgba(120,140,170,0.5)':'rgba(90,72,44,0.5)'});}}
+  if(!frozen)for(let i=prints.length-1;i>=0;i--){prints[i].t-=dt;
+    if(prints[i].t<=0)prints.splice(i,1);}
+
   /* --- the beacon --- */
   if(!frozen&&lvl.obj==='holdout'&&killsLeft>0&&!extract.open){
     const inZone=P.f===0&&Math.abs(P.x-lvl.holdX)<36&&!P.climb;
@@ -1892,7 +1991,10 @@ function update(dt){
     if(!extract.open){extract.open=true;flashT=0.25;sfx('lvl');
       toast('EXTRACTION OPEN!',2.5);
       cine={mode:'reveal',t:0,timer:cine.timer};}
-    if(P.f===extract.f&&Math.abs(P.x-extract.x)<10&&!P.climb)enterTravel();
+    if(P.f===extract.f&&Math.abs(P.x-extract.x)<10&&!P.climb){
+      if(ally){const pay=150+SV.level*12;SV.cash+=pay;
+        rescueMsg='The survivor you pulled out paid their way: +$'+pay+'.';}
+      enterTravel();}
   }
 }
 function popBarrel(pr){
@@ -2660,6 +2762,49 @@ function drawWorld(){
     ctx.fillRect(T.x-1,gy-10,2,1);
     ctx.font='6px monospace';ctx.textAlign='center';ctx.fillStyle='#8af0ff';
     ctx.fillText(Math.ceil(T.t)+'s',T.x,gy-13);}
+  /* footprints */
+  for(const fp of prints){
+    ctx.fillStyle=fp.c.replace(/[\d.]+\)$/,(Math.min(0.5,fp.t/9*0.5))+')');
+    ctx.fillRect(fp.x-1,fp.y-1,3,1);}
+  /* the cage */
+  if(cage){
+    const gy6=gnd(cage.x,0);
+    if(!cage.open){
+      ctx.fillStyle='#2a2f36';ctx.fillRect(cage.x-9,gy6-18,18,18);
+      ctx.fillStyle='#0e1116';ctx.fillRect(cage.x-7,gy6-16,14,15);
+      /* the survivor huddled inside */
+      ctx.fillStyle='#e8b98c';ctx.fillRect(cage.x-2,gy6-11,4,3);
+      ctx.fillStyle='#6a5a3a';ctx.fillRect(cage.x-3,gy6-8,6,6);
+      ctx.fillStyle='#3d444e';
+      for(let b3=-8;b3<=8;b3+=4)ctx.fillRect(cage.x+b3,gy6-18,2,18);
+      ctx.fillRect(cage.x-9,gy6-18,18,2);
+      if(cage.t>0){ctx.fillStyle='#ffd76a';
+        ctx.fillRect(cage.x-8,gy6-22,16*(cage.t/1.4),2);}
+      if((frame>>4)%2){ctx.font='7px monospace';ctx.textAlign='center';
+        ctx.fillStyle='rgba(255,215,106,0.8)';
+        ctx.fillText('HELP',cage.x,gy6-25);}
+    }else{
+      ctx.fillStyle='#3d444e';ctx.fillRect(cage.x-9,gy6-18,3,18);
+      ctx.fillStyle='#2a2f36';ctx.fillRect(cage.x-9,gy6-18,18,2);}}
+  /* supply caches */
+  for(const c of caches){
+    if(c.got)continue;
+    const gy7=gnd(c.x,c.f),bl=(frame>>3)%2;
+    ctx.fillStyle='#4a5a3c';ctx.fillRect(c.x-6,gy7-8,12,8);
+    ctx.fillStyle='#5c7048';ctx.fillRect(c.x-6,gy7-8,12,2);
+    ctx.fillStyle=bl?'#ffe066':'#8a7a2a';ctx.fillRect(c.x-1,gy7-6,2,2);
+    if(bl)lights.push({x:c.x,y:gy7-6,r:14,t:.03});}
+  /* the rescued survivor */
+  if(ally){
+    const fr2=(ally.anim*2|0)%3,spr2=SOL[fr2===2?0:fr2];
+    castShadow(ally.x,ally.y,8,14);
+    ctx.save();ctx.translate(px(ally.x),px(ally.y));
+    if(ally.dir<0)ctx.scale(-1,1);
+    ctx.drawImage(spr2,-spr2.width/2,-spr2.height);
+    ctx.fillStyle='#7a5a8a';ctx.fillRect(-3,-10,6,4);   /* their own jacket */
+    ctx.fillStyle='#1a1a1e';ctx.fillRect(1,-9,5,2);
+    if(ally.muzzleT>0){ctx.fillStyle='#fff2a0';ctx.fillRect(6,-10,3,3);}
+    ctx.restore();}
   /* the beacon */
   if(lvl.obj==='holdout'){
     const hx=lvl.holdX,gy3=gnd(hx,0),
@@ -3230,8 +3375,8 @@ function drawOverMenu(){
   ctx.fillStyle='#cbd3dd';ctx.font='10px monospace';
   ctx.fillText(SV.miles+' miles from home \u00b7 day '+SV.day,W/2,76);
   ctx.fillStyle='#8fa0b3';ctx.font='9px monospace';
-  ctx.fillText(comboBest>2?'Best chain: '+comboBest+' kills \u00b7 guns and cash are kept.'
-    :'Guns, cash and specials are kept.',W/2,90);
+  ctx.fillText(retryCost()?'Scavengers take $'+retryCost()+' while you are down.'
+    :(comboBest>2?'Best chain: '+comboBest+' kills.':'Gear is kept.'),W/2,90);
   const items=overItems();
   const pw=252,pnx=(W-pw)/2,ph=items.length*OVER_STEP+8;
   drawPanel(pnx,OVER_TOP-18,pw,ph);
