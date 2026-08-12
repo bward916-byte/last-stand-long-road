@@ -53,7 +53,7 @@
   #mbOk{background:rgba(255,90,60,.14);border-color:rgba(255,140,90,.5);color:#fca;font-size:14px}
   #mbOk:active,#mbOk.on{background:rgba(255,120,80,.35)}
   body.uimenu #stick,body.uimenu #actBtns{display:none}
-  body.uimenu #menuPad{display:flex}
+  body.uimenu #menuPad{display:none}
   #touchUI{display:none}
   @media (pointer:coarse){#touchUI{display:block}}
 </style>
@@ -1220,6 +1220,7 @@ function drawLoadout(){
     const it=items[i],y=LOAD_TOP+i*LOAD_STEP,sel=i===loadSel,x0=126;
     if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(x0-4,y-13,W-x0,21);
       ctx.fillStyle='#ffd76a';ctx.fillRect(x0-4,y-13,3,21);}
+    rowDecor('loadout',i,x0-4,y-13,W-x0,21,it.type==='go'||it.type==='wpn');
     ctx.save();ctx.translate(x0+2,y-13);
     if(it.type==='wpn'){ctx.scale(1.1,1.1);gunIcon(SV.cur,0,0);}
     else if(it.type==='gear')gearIcon(it.k,0,0);
@@ -1249,7 +1250,7 @@ function drawLoadout(){
     :(cur.type==='wpn'?'Buy new weapons and upgrades in the armory.'
     :'Gear is worn on the road and shown on your survivor.'),W/2,H-20);
   ctx.fillStyle='#5a6472';
-  ctx.fillText('tap to select \u00b7 tap again or SELECT to buy',W/2,H-7);}
+  ctx.fillText('tap to change gear \u00b7 spending always asks twice',W/2,H-7);}
 function gearIcon(k,ox,oy){
   if(k==='vest'){
     ip(ox+4,oy+2,8,2,'#5a6a7a');ip(ox+3,oy+4,10,7,'#5a6a7a');
@@ -1275,6 +1276,33 @@ function skillPress(k){
   if(rank>=SKILLS[it.k].max){sfx('deny');return;}
   if((SV.sp||0)<cost){sfx('deny');return;}
   SV.sp-=cost;SV.skills[it.k]=rank+1;sfx('lvl');saveRun();}
+/* touch model: navigation rows act on a single tap; anything that spends
+   cash, points, scrap or fuel arms itself and asks for one more tap. */
+let armed=null,armedT=0;
+function costsSomething(screen,it){
+  if(!it)return false;
+  if(screen==='shop')return it.type!=='go';
+  if(screen==='skills')return it.type==='sk';
+  if(screen==='camp')return it.type==='craft';
+  if(screen==='loadout')return it.type==='gear';
+  if(screen==='travel')return it.type==='go';
+  if(screen==='over')return it.type==='retry'&&retryCost()>0;
+  return false;}
+function tapRow(screen,i,cur,setSel,press){
+  if(i!==cur){setSel(i);sfx('climb');
+    if(costsSomething(screen,rowOf(screen,i))){armed=screen+':'+i;armedT=2.2;}
+    else{armed=null;press('act');}
+    return;}
+  const key=screen+':'+i;
+  if(costsSomething(screen,rowOf(screen,i))&&armed!==key){
+    armed=key;armedT=2.2;sfx('climb');return;}
+  armed=null;press('act');}
+function rowOf(screen,i){
+  const list=screen==='shop'?shopItems():screen==='skills'?skillItems()
+    :screen==='camp'?campItems():screen==='loadout'?loadoutItems()
+    :screen==='travel'?travelItems():screen==='over'?overItems():null;
+  return list?list[i]:null;}
+function isArmed(screen,i){return armed===screen+':'+i&&armedT>0;}
 function menuItems(){
   const it=[];
   if(savedRun)it.push({type:'continue',label:'CONTINUE \u2014 DAY '+savedRun.day});
@@ -1630,31 +1658,31 @@ cv.addEventListener('pointerdown',ev=>{ac();
   if(state==='ending'){
     const items=endingItems(),i=rowAt(canvasPt(ev).y,150-12,22,items.length);
     if(i<0)return;
-    if(i===endSel)endingPress('act');else{endSel=i;sfx('climb');}
+    tapRow('ending',i,endSel,v=>{endSel=v;},endingPress);
     return;}
   if(state==='camp'){
     const items=campItems(),
       i=rowAt(canvasPt(ev).y,CAMP_TOP-12,CAMP_STEP,items.length);
     if(i<0)return;
-    if(i===campSel)campPress('act');else{campSel=i;sfx('climb');}
+    tapRow('camp',i,campSel,v=>{campSel=v;},campPress);
     return;}
   if(state==='loadout'){
     const items=loadoutItems(),
       i=rowAt(canvasPt(ev).y,LOAD_TOP-13,LOAD_STEP,items.length);
     if(i<0)return;
-    if(i===loadSel)loadoutPress('act');else{loadSel=i;sfx('climb');}
+    tapRow('loadout',i,loadSel,v=>{loadSel=v;},loadoutPress);
     return;}
   if(state==='skills'){
     const items=skillItems(),
       i=rowAt(canvasPt(ev).y,SKILL_TOP-11,SKILL_STEP,items.length);
     if(i<0)return;
-    if(i===skillSel)skillPress('act');else{skillSel=i;sfx('climb');}
+    tapRow('skills',i,skillSel,v=>{skillSel=v;},skillPress);
     return;}
   if(state==='travel'){
     const items=travelItems(),
       i=rowAt(canvasPt(ev).y,travelRowTop-10,travelRowStep,items.length);
     if(i<0||items[i].type==='hdr')return;
-    if(i===travelSel)travelPress('act');else{travelSel=i;sfx('climb');}
+    tapRow('travel',i,travelSel,v=>{travelSel=v;},travelPress);
     return;}
   if(state==='menu'){
     const items=menuItems(),i=rowAt(canvasPt(ev).y,MENU_TOP-14,MENU_STEP,items.length);
@@ -1736,6 +1764,7 @@ function scrY(wy){return (wy-cam.y)*cam.z+H/2;}
 let last=0;
 function loop(ts){requestAnimationFrame(loop);
   const dt=Math.min((ts-last)/1000,0.05);last=ts;frame++;
+  if(armedT>0){armedT-=dt;if(armedT<=0)armed=null;}
   pollGamepad();
   try{musicTick();}catch(e){}
   /* brief freeze on heavy impacts — makes hits land */
@@ -4262,6 +4291,19 @@ function campPress(k){
   else if(c.k==='fuel')SV.sup.fuel++;
   else SV.sup.food++;
   SV.sup.scrap-=c.scrap;sfx('clank');saveRun();}
+function rowDecor(screen,i,x0,y,w2,h2,nav){
+  if(isArmed(screen,i)){
+    const pu=0.5+0.5*Math.sin(frame*0.3);
+    ctx.strokeStyle='rgba(125,255,200,'+(0.45+0.4*pu)+')';
+    ctx.lineWidth=1.5;
+    ctx.strokeRect(x0+0.5,y+0.5,w2-1,h2-1);
+    ctx.textAlign='right';ctx.font='bold 7px monospace';
+    ctx.fillStyle='#7dffc8';
+    ctx.fillText('TAP AGAIN',x0+w2-4,y+h2-3);
+  }else if(nav){
+    ctx.textAlign='right';ctx.font='bold 9px monospace';
+    ctx.fillStyle='rgba(140,155,175,0.6)';
+    ctx.fillText('\u203a',x0+w2-5,y+h2/2+3.5);}}
 function drawCamp(){
   ctx.fillStyle='#101318';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#1a1e28';ctx.fillRect(0,0,W,32);
@@ -4276,6 +4318,7 @@ function drawCamp(){
     const it=items[i],y=CAMP_TOP+i*CAMP_STEP,sel=i===campSel;
     if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(4,y-12,W-8,19);
       ctx.fillStyle='#ffd76a';ctx.fillRect(4,y-12,3,19);}
+    rowDecor('camp',i,4,y-12,W-8,19,it.type==='go');
     ctx.save();ctx.translate(11,y-12);
     if(it.type==='go')uiIcon('go',0,0);
     else if(it.c.k==='ammo'){
@@ -4301,7 +4344,7 @@ function drawCamp(){
   ctx.textAlign='center';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
   ctx.fillText(cur.type==='craft'?cur.c.desc:'Scrap comes from stashes and searching the road.',W/2,H-20);
   ctx.fillStyle='#5a6472';
-  ctx.fillText('tap to select \u00b7 tap again or SELECT to craft',W/2,H-7);}
+  ctx.fillText('tap to craft \u00b7 spending always asks twice',W/2,H-7);}
 const SKILL_TOP=46,SKILL_STEP=17;
 function drawSkills(){
   ctx.fillStyle='#101318';ctx.fillRect(0,0,W,H);
@@ -4317,6 +4360,7 @@ function drawSkills(){
     const it=items[i],y=SKILL_TOP+i*SKILL_STEP,sel=i===skillSel;
     if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(4,y-11,W-8,17);
       ctx.fillStyle='#ffd76a';ctx.fillRect(4,y-11,3,17);}
+    rowDecor('skills',i,4,y-11,W-8,17,it.type==='go');
     if(it.type==='go'){
       ctx.save();ctx.translate(11,y-11);uiIcon('go',0,0);ctx.restore();
       ctx.textAlign='left';ctx.font=sel?'bold 10px monospace':'10px monospace';
@@ -4341,7 +4385,7 @@ function drawSkills(){
   ctx.fillText(cur.type==='sk'?SKILLS[cur.k].desc
     :'Points come from clearing roads \u2014 deep routes pay 3.',W/2,H-22);
   ctx.fillStyle='#5a6472';
-  ctx.fillText('tap a skill to select \u00b7 tap again or SELECT to buy',W/2,H-7);}
+  ctx.fillText('tap to buy \u00b7 spending always asks twice',W/2,H-7);}
 function drawOverMenu(){
   ctx.fillStyle='rgba(5,8,12,0.94)';ctx.fillRect(0,0,W,H);
   ctx.textAlign='center';
@@ -4474,6 +4518,7 @@ function drawTravel(){
       continue;}
     if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(8,y-10,W-16,step-1);
       ctx.fillStyle='#ffd76a';ctx.fillRect(8,y-10,3,step-1);}
+    rowDecor('travel',i,8,y-10,W-16,step-1,it.type!=='go');
     ctx.save();ctx.translate(14,y-10);
     if(it.type==='loadout'){ctx.scale(0.8,0.8);uiIcon('new',0,0);}
     else uiIcon(it.type==='skill'?'skill':(it.type==='camp'?'camp':it.type),0,0);
@@ -4579,6 +4624,7 @@ function drawShop(){
       afford=SV.cash>=it.cost;
     if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(4,y-12,W-8,19);
       ctx.fillStyle='#ffd76a';ctx.fillRect(4,y-12,3,19);}
+    rowDecor('shop',start+i,4,y-12,W-8,19,it.type==='go');
     ctx.save();if(!afford&&it.cost>0)ctx.globalAlpha=0.4;
     ctx.translate(12,y-13);ctx.scale(1.35,1.35);shopIcon(it,0,0);
     ctx.restore();
