@@ -669,6 +669,22 @@ function buildRelief(){
   relief=h;}
 
 /* --- terrain silhouette, used for both fill and clipping --- */
+function wallBetween(x1,x2){
+  if(!lvl||!lvl.cellars)return false;
+  const lo=Math.min(x1,x2),hi=Math.max(x1,x2);
+  for(const c of lvl.cellars)if(c.wall>lo&&c.wall<hi)return true;
+  return false;}
+function clampWalls(x,ox){
+  if(!lvl||!lvl.cellars)return x;
+  for(const c of lvl.cellars){
+    if(ox<=c.wall-5&&x>c.wall-5)return c.wall-5;
+    if(ox>=c.wall+5&&x<c.wall+5)return c.wall+5;}
+  return x;}
+function tunnelClamp(x){
+  if(!lvl||!lvl.cellars||!lvl.cellars.length)return x;
+  let best=lvl.cellars[0],bd=1e9;
+  for(const c of lvl.cellars){const d=Math.abs((c.a+c.b)/2-x);if(d<bd){bd=d;best=c;}}
+  return clamp(x,best.a-5,best.b+5);}
 function terrainPath(x0,x1,gy0){
   ctx.beginPath();
   ctx.moveTo(x0,gy0+120);
@@ -721,6 +737,15 @@ function levelCfg(n){
     holdX=(width*(0.45+rnd()*0.2))|0;}
   else if(!drive&&floors===1&&n>=4&&rnd()<0.26){
     obj='rescue';cageX=(width*(0.35+rnd()*0.4))|0;}
+  /* cellars: the surface is blocked; the only way on is down and under */
+  const cellars=[];
+  if(!drive&&floors===1&&n>=3&&rnd()<0.38){
+    const nCell=(n>=8&&rnd()<0.4)?2:1;
+    for(let ci=0;ci<nCell;ci++){
+      const frac=nCell===1?(0.38+rnd()*0.24):(0.28+ci*0.36+rnd()*0.10),
+        bx=(width*frac)|0;
+      if(cellars.length&&Math.abs(bx-cellars[0].wall)<width*0.24)continue;
+      cellars.push({wall:bx,a:bx-44-(rnd()*14|0),b:bx+44+(rnd()*14|0)});}}
   const caches=[];
   if(!drive&&rnd()<0.45){
     const nc=1+(rnd()<0.35?1:0);
@@ -730,7 +755,7 @@ function levelCfg(n){
   if(tod==='night'&&n>=6&&rnd()<0.35){bloodMoon=true;
     const extra=Math.ceil(mix.length*0.35);
     for(let i2=0;i2<extra;i2++)mix.push(mix[(rnd()*mix.length)|0]);}
-  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves,tod,bloodMoon,obj,holdNeed,holdX,cageX,caches};
+  return{floors,width,mix,hpMult,biome,ltype,start,ext,drive,waves,tod,bloodMoon,obj,holdNeed,holdX,cageX,caches,cellars};
 }
 
 /* ---------------- state ---------------- */
@@ -750,12 +775,13 @@ function zTop(z){return z.y-z.h*z.scale;}
 function zMid(z){return z.y-z.h*z.scale*0.55;}
 
 function startLevel(n){
-  lvl=levelCfg(n);SV.mod.zmult=1;worldH=lvl.floors*FLOOR_H+6;
+  lvl=levelCfg(n);SV.mod.zmult=1;
+  worldH=((lvl.cellars&&lvl.cellars.length)?lvl.floors+1:lvl.floors)*FLOOR_H+6;
   buildRelief();
   P={x:lvl.start.x,f:lvl.start.f,y:gnd(lvl.start.x,lvl.start.f),vx:0,vy:0,air:false,jumpT:0,
     dir:1,hp:clamp(SV.hp,1,SV.maxHp),
     fireT:0,climb:null,anim:0,hurtT:0,hazT:0,muzzleT:0,target:null,
-    drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0};
+    drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0,taughtCellar:0};
   zombies=[];bullets=[];spits=[];cash=[];parts=[];decals=[];corpses=[];rings=[];lights=[];
   hazards=[];shake=0;flashT=0;hitStop=0;punchX=punchY=0;combo=0;comboT=0;
   turbo=0;turboT=0;lensBlood=[];finisher=null;
@@ -765,6 +791,8 @@ function startLevel(n){
   caches=(lvl.caches||[]).map(c=>({x:c.x,f:c.f,got:false}));
   prints=[];printD=0;
   ladders=[];
+  for(const c of (lvl.cellars||[]))
+    ladders.push({x:c.a,f:0,hatch:1},{x:c.b,f:0,hatch:1});
   for(let f=0;f<lvl.floors-1;f++){
     const a=40+rnd()*(lvl.width*0.4),b=lvl.width*0.55+rnd()*(lvl.width*0.4-50);
     ladders.push({x:a|0,f},{x:b|0,f});}
@@ -1389,7 +1417,9 @@ function camUpdate(dt){
   const hw=W/(2*cam.z),hh=H/(2*cam.z);
   if(lvl.width>hw*2)tx=clamp(tx,hw,lvl.width-hw);else tx=lvl.width/2;
   if(worldH>hh*2)ty=clamp(ty,hh,worldH-hh);else ty=worldH/2;
-  if(lvl.biome.out)ty=gnd(P.x,0)-0.20*H/cam.z; /* sky up top, soil at the bottom edge */
+  if(lvl.biome.out)ty=(P.f===1&&lvl.cellars&&lvl.cellars.length)
+    ?groundY(1)-0.34*H/cam.z
+    :gnd(P.x,0)-0.20*H/cam.z; /* sky up top, soil at the bottom edge */
   if(finisher){tx=finisher.x;ty=finisher.y;tz=Math.min(1.7,BZ*1.5);
     const hw2=W/(2*tz),hh2=H/(2*tz);
     if(lvl.width>hw2*2)tx=clamp(tx,hw2,lvl.width-hw2);
@@ -1470,18 +1500,25 @@ function update(dt){
   if(!frozen){
     if(P.climb){
       P.y+=P.climb.dirn*46*dt;P.anim+=dt*8;
-      if((P.climb.dirn>0&&P.y>=groundY(P.climb.tf))||(P.climb.dirn<0&&P.y<=groundY(P.climb.tf))){
-        P.y=groundY(P.climb.tf);P.f=P.climb.tf;P.climb=null;sfx('climb');}
+      const cty=P.climb.tf===0?gnd(P.x,0):groundY(P.climb.tf);
+      if((P.climb.dirn>0&&P.y>=cty)||(P.climb.dirn<0&&P.y<=cty)){
+        P.y=cty;P.f=P.climb.tf;P.climb=null;sfx('climb');}
     }else{
       P.vx=0;
       if(keys['arrowleft']||keys['a']||keys['left']){P.vx=-spd;P.dir=-1;}
       if(keys['arrowright']||keys['d']||keys['right']){P.vx=spd;P.dir=1;}
-      const nx=clamp(P.x+P.vx*dt,8,lvl.width-8);
+      let nx=clamp(P.x+P.vx*dt,8,lvl.width-8);
+      if(P.f===0)nx=clampWalls(nx,P.x);
+      else if(lvl.cellars&&lvl.cellars.length&&P.f===1)nx=tunnelClamp(nx);
       if(relief&&P.f===0&&!P.air&&P.vx!==0){
         /* walk up anything gentle; a face taller than STEP_MAX needs a jump */
         const rise=gnd(P.x,0)-gnd(nx,0);
         if(rise>STEP_MAX){P.vx=0;P.blockT=0.25;
           if(!P.taughtJump){P.taughtJump=1;itemToast('TOO STEEP \u2014 PRESS UP TO JUMP');}}
+        if(lvl.cellars&&lvl.cellars.length&&!P.taughtCellar){
+          for(const c2 of lvl.cellars)
+            if(Math.abs(P.x-c2.wall)<24&&P.f===0){P.taughtCellar=1;
+              itemToast('BLOCKED \u2014 FIND THE HATCH AND GO UNDER');break;}}
         else P.x=nx;
       }else P.x=nx;
       if(P.vx!==0)P.anim+=dt*10;else P.anim=0.6;
@@ -1663,6 +1700,12 @@ function update(dt){
         if(z.hp<=0)killZombie(z);
         if(b.pierce>0)b.pierce--;else{dead=true;break;}
       }}
+    if(!dead&&lvl.cellars)for(const c of lvl.cellars){
+      if(Math.abs(b.x-c.wall)<4&&b.y>gnd(c.wall,0)-44&&b.y<gnd(c.wall,0)+2){
+        dead=true;
+        parts.push({x:b.x-Math.sign(b.vx)*2,y:b.y,vx:-Math.sign(b.vx)*40,
+          vy:-20-Math.random()*20,life:.25,c:'#c8b090',s:1});
+        break;}}
     if(!dead)for(const pr of props){
       if(!pr.vol||pr.gone)continue;
       /* don't let your own auto-fire cook a drum in your lap */
@@ -1700,7 +1743,8 @@ function update(dt){
     if(z.rageT>0)z.rageT-=dt;
     /* the longer a stop drags on, the harder they push — no more stalemates */
     const rage=(z.rageT>0?1.6:1)*(1+Math.min(0.4,levelT/150));
-    const engaged=(z.f===P.f&&!P.climb)||(P.climb&&Math.abs(P.y-z.y)<40);
+    const engaged=((z.f===P.f&&!P.climb)||(P.climb&&Math.abs(P.y-z.y)<40))
+      &&!(z.f===0&&P.f===0&&wallBetween(z.x,P.x));
     if(z.fuseT>=0){z.fuseT-=dt;if(z.fuseT<=0){killZombie(z);continue;}}
     /* --- the wretch: hover, close in, dive --- */
     if(z.fly){
@@ -1736,16 +1780,22 @@ function update(dt){
     /* --- climbing between floors --- */
     if(z.climb){
       z.y+=z.climb.dirn*36*dt;z.anim+=dt*7;
-      if((z.climb.dirn>0&&z.y>=groundY(z.climb.tf))||(z.climb.dirn<0&&z.y<=groundY(z.climb.tf))){
-        z.y=groundY(z.climb.tf);z.f=z.climb.tf;z.climb=null;}
+      const zty=z.climb.tf===0?gnd(z.x,0):groundY(z.climb.tf);
+      if((z.climb.dirn>0&&z.y>=zty)||(z.climb.dirn<0&&z.y<=zty)){
+        z.y=zty;z.f=z.climb.tf;z.climb=null;}
       continue;}
     /* --- different floor: walk to the nearest ladder and come get you --- */
-    if(!engaged&&z.f!==P.f&&lvl.floors>1){
-      const want=z.f<P.f?z.f:z.f-1;
+    const zBlocked=z.f===0&&P.f===0&&wallBetween(z.x,P.x);
+    if(!engaged&&(z.f!==P.f||zBlocked)&&(lvl.floors>1||(lvl.cellars&&lvl.cellars.length))){
+      const ref=(lvl.cellars&&lvl.cellars.length&&z.f===1)?P.x:z.x;
+      const want=(zBlocked||z.f<P.f)?z.f:z.f-1;
       let best=null,bd=1e9;
-      for(const L of ladders)if(L.f===want){const d=Math.abs(L.x-z.x);if(d<bd){bd=d;best=L;}}
+      for(const L of ladders)if(L.f===want){const d=Math.abs(L.x-ref)+Math.abs(L.x-z.x)*0.2;
+        if(d<bd){bd=d;best=L;}}
       if(best){
-        if(bd<5){z.x=best.x;z.climb={tf:z.f<P.f?z.f+1:z.f-1,dirn:z.f<P.f?1:-1};}
+        const dz=Math.abs(best.x-z.x);
+        if(dz<5){z.x=best.x;
+          z.climb={tf:(zBlocked||z.f<P.f)?z.f+1:z.f-1,dirn:(zBlocked||z.f<P.f)?1:-1};}
         else{z.dir=best.x>z.x?1:-1;z.x+=z.dir*z.sp*0.8*rage*dt;z.anim+=dt*5.5*rage;}
         z.x=clamp(z.x,10,lvl.width-10);continue;}
     }
@@ -1795,7 +1845,11 @@ function update(dt){
           spits.push({x:z.x+z.dir*4,y:z.y-9,vx:z.dir*95,dmg:z.dmg,life:1.6});}
         z.x+=z.dir*z.sp*0.3*dt;z.anim+=dt*3;
       }else if(Math.abs(d)>9*z.scale||Math.abs(P.y-z.y)>18){
-        z.dir=d>0?1:-1;z.x+=z.dir*z.sp*rage*dt;z.anim+=dt*6*rage;
+        z.dir=d>0?1:-1;
+        let zx=z.x+z.dir*z.sp*rage*dt;
+        if(z.f===0)zx=clampWalls(zx,z.x);
+        else if(z.f===1&&lvl.cellars&&lvl.cellars.length)zx=tunnelClamp(zx);
+        z.x=zx;z.anim+=dt*6*rage;
       }else if(z.atkT<=0){z.atkT=0.8;hurtPlayer(z.dmg);}
     }else{
       /* off-floor stragglers shadow the player instead of pacing in place,
@@ -2627,6 +2681,82 @@ function drawOutdoor(B){
         if(dl>0.6&&dr>0.6)ctx.fillRect(x-6,gy-h0+1,13,2);}}
     ctx.fillStyle='rgba(0,0,0,0.4)';
     ctx.fillRect(-24,gy+24,lvl.width+48,20);
+  /* ---- underground: earth, tunnels, hatches, and whatever blocks the road ---- */
+  if(lvl.cellars&&lvl.cellars.length){
+    const ty1=groundY(1),tTop=ty1-18;
+    /* deep earth below the terrain band */
+    ctx.fillStyle=mixHex(B.fd,'#0a0806',0.55);
+    ctx.fillRect(-24,gy+24,lvl.width+48,ty1+30-(gy+24));
+    /* buried strata + rocks */
+    seed=SV.level*61;
+    for(let i=0;i<lvl.width/22;i++){
+      const rx=(rnd()*lvl.width)|0,ry=gy+34+rnd()*(ty1-gy-30);
+      ctx.fillStyle=rnd()<0.5?'rgba(0,0,0,0.22)':'rgba(120,100,80,0.10)';
+      ctx.fillRect(rx,ry,4+(rnd()*8|0),2);}
+    for(const c of lvl.cellars){
+      /* the tunnel cavity */
+      ctx.fillStyle='#141017';
+      ctx.fillRect(c.a-7,tTop,(c.b-c.a)+14,ty1-tTop+2);
+      ctx.fillStyle='#241c26';ctx.fillRect(c.a-7,tTop,(c.b-c.a)+14,2);
+      ctx.fillStyle='#2e2430';ctx.fillRect(c.a-7,ty1,(c.b-c.a)+14,2);
+      /* support beams */
+      for(let bx2=c.a+8;bx2<c.b-4;bx2+=26){
+        ctx.fillStyle='#4a3a28';
+        ctx.fillRect(bx2,tTop,3,ty1-tTop);
+        ctx.fillRect(bx2-2,tTop,7,3);}
+      /* roots reaching down from the surface */
+      seed=(c.wall*13)|0;
+      ctx.strokeStyle='rgba(90,70,50,0.6)';ctx.lineWidth=1;
+      for(let i=0;i<6;i++){const rx2=c.a+rnd()*(c.b-c.a);
+        ctx.beginPath();ctx.moveTo(rx2,tTop+1);
+        ctx.quadraticCurveTo(rx2+(rnd()-0.5)*8,tTop+7,rx2+(rnd()-0.5)*12,tTop+4+rnd()*8);
+        ctx.stroke();}
+      /* hatch shafts */
+      for(const hx2 of [c.a,c.b]){
+        const sg2=gnd(hx2,0);
+        ctx.fillStyle='#17121a';ctx.fillRect(hx2-6,sg2-1,12,tTop-sg2+2);
+        ctx.fillStyle='#3d3244';ctx.fillRect(hx2-7,sg2-1,2,tTop-sg2+2);
+        ctx.fillRect(hx2+5,sg2-1,2,tTop-sg2+2);
+        /* hatch frame at the surface */
+        ctx.fillStyle='#4a3a28';ctx.fillRect(hx2-8,sg2-3,16,3);}
+      /* a lamp string so the tunnel isn't pitch dark */
+      for(let lx2=c.a+14;lx2<c.b;lx2+=34){
+        const flick=0.7+0.3*Math.sin(frame*0.13+lx2);
+        ctx.fillStyle='rgba(255,190,110,'+(0.75*flick)+')';
+        ctx.fillRect(lx2,tTop+3,2,2);
+        lights.push({x:lx2+1,y:tTop+8,r:26*flick,t:.03});}
+      /* the blocker on the surface */
+      const wx=c.wall,wg=gnd(wx,0),pa2=B.para;
+      if(pa2==='corn'||pa2==='meadow'||pa2==='orchard'){
+        /* collapsed barn */
+        ctx.fillStyle='#6d2a20';ctx.fillRect(wx-20,wg-30,40,30);
+        ctx.fillStyle='#7d332a';
+        ctx.beginPath();ctx.moveTo(wx-24,wg-30);ctx.lineTo(wx,wg-46);
+        ctx.lineTo(wx+24,wg-30);ctx.closePath();ctx.fill();
+        ctx.fillStyle='#4a1d16';ctx.fillRect(wx-20,wg-30,40,3);
+        ctx.fillStyle='#3a2018';
+        ctx.fillRect(wx-6,wg-14,12,14);
+        for(let px3=-16;px3<=14;px3+=8)ctx.fillRect(wx+px3,wg-26,2,22);
+        ctx.fillStyle='#2a1610';
+        ctx.fillRect(wx-8,wg-15,16,3);ctx.fillRect(wx-3,wg-12,10,3);
+      }else if(pa2==='mountain'||pa2==='canyon'){
+        /* rockslide */
+        ctx.fillStyle='#4a4550';
+        for(let i=0;i<8;i++){seed=wx*7+i*31;
+          const bx3=wx-16+rnd()*32,bs=6+rnd()*11,by3=wg-rnd()*34;
+          ctx.fillRect(bx3-bs/2,by3-bs/2,bs,bs*0.8);}
+        ctx.fillStyle='#5a5560';ctx.fillRect(wx-14,wg-42,28,6);
+      }else{
+        /* jack-knifed trailer */
+        ctx.fillStyle='#3d3a42';ctx.fillRect(wx-19,wg-34,38,30);
+        ctx.fillStyle='#4a4650';ctx.fillRect(wx-19,wg-34,38,4);
+        ctx.fillStyle='#2a2830';ctx.fillRect(wx-14,wg-24,28,12);
+        ctx.fillStyle='#1a1a20';
+        ctx.fillRect(wx-16,wg-5,8,5);ctx.fillRect(wx+8,wg-5,8,5);}
+      /* danger paint at ground level */
+      ctx.fillStyle='#c8b45a';
+      ctx.fillRect(wx-22,wg-2,7,2);ctx.fillRect(wx-8,wg-2,7,2);
+      ctx.fillRect(wx+6,wg-2,7,2);ctx.fillRect(wx+17,wg-2,6,2);}}
   }else{
     ctx.fillStyle=B.fs;ctx.fillRect(0,gy,lvl.width,6);
     ctx.fillStyle=B.fd;ctx.fillRect(-24,gy+6,lvl.width+48,80);
@@ -2703,7 +2833,7 @@ function drawWorld(){
   for(const d of decals){ctx.fillStyle=d.c;ctx.fillRect(d.x,d.y,d.w,2);}
   for(const pr of props)drawProp(pr);
   for(const L of ladders){
-    const y0=groundY(L.f),y1=groundY(L.f+1);
+    const y0=L.hatch?gnd(L.x,0):groundY(L.f),y1=L.hatch?groundY(1):groundY(L.f+1);
     ctx.fillStyle='#8a7a4a';
     ctx.fillRect(L.x-4,y0+2,2,y1-y0);ctx.fillRect(L.x+2,y0+2,2,y1-y0);
     for(let y=y0+6;y<y1;y+=6)ctx.fillRect(L.x-4,y,8,2);
