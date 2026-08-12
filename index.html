@@ -1298,7 +1298,7 @@ function tapRow(screen,i,cur,setSel,press){
     armed=key;armedT=2.2;sfx('climb');return;}
   armed=null;press('act');}
 function rowOf(screen,i){
-  const list=screen==='shop'?shopItems():screen==='skills'?skillItems()
+  const list=screen==='shop'?gridShopItems():screen==='skills'?skillItems()
     :screen==='camp'?campItems():screen==='loadout'?loadoutItems()
     :screen==='travel'?travelItems():screen==='over'?overItems():null;
   return list?list[i]:null;}
@@ -1647,13 +1647,24 @@ function rowAt(py,top,step,count){const i=Math.floor((py-top)/step);
   return(i>=0&&i<count)?i:-1;}
 cv.addEventListener('pointerdown',ev=>{ac();
   if(state==='shop'){
-    const items=shopItems(),visible=SHOP_VISIBLE,
-      start=Math.max(0,Math.min(shopSel-4,items.length-visible)),
-      shown=Math.min(visible,items.length-start),
-      i=rowAt(canvasPt(ev).y,SHOP_TOP-9,SHOP_STEP,shown);
-    if(i<0)return;
-    const idx=start+i;
-    if(idx===shopSel)shopPress('act');else{shopSel=idx;sfx('climb');}
+    const pt2=canvasPt(ev),items=gridShopItems(),
+      pages=Math.max(1,Math.ceil(items.length/SHOP_PER)),
+      page=Math.floor(shopSel/SHOP_PER);
+    if(pt2.x<30&&pt2.y<30){shopPress('escape');return;}
+    if(pt2.y>=SHOP_GY&&pt2.y<SHOP_GY+SHOP_ROWS*SHOP_TH){
+      if(pt2.x<SHOP_GX){
+        if(page>0){shopSel=Math.max(0,(page-1)*SHOP_PER);sfx('climb');}
+        else sfx('deny');
+        return;}
+      if(pt2.x>=W-24){
+        if(page<pages-1){shopSel=Math.min(items.length-1,(page+1)*SHOP_PER);sfx('climb');}
+        else sfx('deny');
+        return;}
+      const col=((pt2.x-SHOP_GX)/SHOP_TW)|0,row=((pt2.y-SHOP_GY)/SHOP_TH)|0,
+        idx=page*SHOP_PER+row*SHOP_COLS+col;
+      if(idx<items.length)
+        tapRow('shop',idx,shopSel,v=>{shopSel=v;},shopPress);
+      return;}
     return;}
   if(state==='ending'){
     const items=endingItems(),i=rowAt(canvasPt(ev).y,150-12,22,items.length);
@@ -2723,11 +2734,16 @@ function shopItems(){const it=[];
   it.push({k:'go',label:'<< BACK TO THE ROAD',cost:0,type:'go'});
   return it;}
 function shopPress(k){
-  const items=shopItems();
-  if(k==='arrowup'||k==='w'||k==='up'){shopSel=(shopSel-1+items.length)%items.length;sfx('climb');}
-  else if(k==='arrowdown'||k==='s'||k==='down'){shopSel=(shopSel+1)%items.length;sfx('climb');}
+  const items=gridShopItems();
+  if(shopSel>=items.length)shopSel=items.length-1;
+  if(k==='escape'){state='travel';sfx('buy');saveRun();return;}
+  if(k==='arrowleft'||k==='a'||k==='left'){shopSel=(shopSel-1+items.length)%items.length;sfx('climb');}
+  else if(k==='arrowright'||k==='d'||k==='right'){shopSel=(shopSel+1)%items.length;sfx('climb');}
+  else if(k==='arrowup'||k==='w'||k==='up'){shopSel=(shopSel-SHOP_COLS+items.length)%items.length;sfx('climb');}
+  else if(k==='arrowdown'||k==='s'||k==='down'){shopSel=(shopSel+SHOP_COLS)%items.length;sfx('climb');}
   else if(k==='act'||k==='enter'||k===' '||k==='tap'){
     const it=items[shopSel];
+    if(!it)return;
     if(it.type==='go'){state='travel';sfx('buy');saveRun();return;}
     if(SV.cash<it.cost){sfx('deny');return;}
     if(it.type==='med'&&SV.hp>=SV.maxHp){sfx('deny');return;}
@@ -4608,51 +4624,112 @@ function wrapLines(txt,maxChars){
     if((line+' '+w).trim().length>maxChars){out.push(line.trim());line=w;}
     else line=(line+' '+w).trim();}
   if(line)out.push(line);return out;}
+const SHOP_COLS=6,SHOP_ROWS=2,SHOP_TW=52,SHOP_TH=42,
+  SHOP_GX=26,SHOP_GY=36,SHOP_PER=SHOP_COLS*SHOP_ROWS;
+function gridShopItems(){return shopItems().filter(it=>it.type!=='go');}
+function shopBadge(it){
+  if(it.type==='ammo')return SV.ammo[it.k]>=AMMO_CAP[it.k]?'FULL':SV.ammo[it.k];
+  if(it.type==='item')return 'x'+SV.items[it.k];
+  if(it.type==='d')return 'Lv'+SV.up[it.k].d;
+  if(it.type==='r')return 'Lv'+SV.up[it.k].r;
+  if(it.type==='hp')return 'Lv'+SV.hpLvl;
+  if(it.type==='med')return Math.ceil(SV.hp)+'/'+SV.maxHp;
+  return '';}
+function shopDesc(it){
+  if(it.type==='buy')return 'DMG '+WEAPONS[it.k].dmg+' \u00b7 ROF '
+    +WEAPONS[it.k].rof+(WEAPONS[it.k].pellets>1?' \u00b7 x'+WEAPONS[it.k].pellets+' shot':'')
+    +(AMMO_CAP[it.k]?' \u00b7 '+AMMO_CAP[it.k]+' rounds':' \u00b7 no ammo needed');
+  if(it.type==='ammo')return '+'+AMMO_BUY[it.k][0]+' rounds \u00b7 have '
+    +SV.ammo[it.k]+'/'+AMMO_CAP[it.k];
+  if(it.type==='d')return 'Damage +25% \u00b7 now '+wDmg(it.k).toFixed(1);
+  if(it.type==='r')return 'Fire rate +14% \u00b7 now '+wRof(it.k).toFixed(1)+'/s';
+  if(it.type==='item')return ITEMS[it.k].desc||'Carry up to '+itemMax(it.k);
+  if(it.type==='med')return 'Patches +50 HP on the spot';
+  if(it.type==='hp')return 'Max health +25, healed to full';
+  return '';}
 function drawShop(){
   ctx.fillStyle='#12151f';ctx.fillRect(0,0,W,H);
-  /* header */
   ctx.fillStyle='#1c2130';ctx.fillRect(0,0,W,30);
   ctx.fillStyle='#2a3346';ctx.fillRect(0,29,W,1);
+  /* back button */
+  ctx.fillStyle='rgba(125,255,200,0.10)';ctx.fillRect(4,4,24,22);
+  ctx.strokeStyle='rgba(125,255,200,0.45)';ctx.strokeRect(4.5,4.5,23,21);
+  ctx.textAlign='center';ctx.font='bold 13px monospace';
+  ctx.fillStyle='#7dffc8';ctx.fillText('\u2039',16,19);
   ctx.textAlign='left';ctx.font='bold 13px monospace';
-  ctx.fillStyle='#ffd76a';ctx.fillText('ROADSIDE ARMORY',8,20);
-  ctx.textAlign='right';ctx.font='bold 13px monospace';
-  ctx.fillStyle='#9fff9f';ctx.fillText('$'+SV.cash,W-8,20);
-  const items=shopItems(),visible=SHOP_VISIBLE,
-    start=Math.max(0,Math.min(shopSel-3,items.length-visible));
-  for(let i=0;i<visible&&start+i<items.length;i++){
-    const it=items[start+i],y=SHOP_TOP+i*SHOP_STEP,sel=(start+i)===shopSel,
-      afford=SV.cash>=it.cost;
-    if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(4,y-12,W-8,19);
-      ctx.fillStyle='#ffd76a';ctx.fillRect(4,y-12,3,19);}
-    rowDecor('shop',start+i,4,y-12,W-8,19,it.type==='go');
-    ctx.save();if(!afford&&it.cost>0)ctx.globalAlpha=0.4;
-    ctx.translate(12,y-13);ctx.scale(1.35,1.35);shopIcon(it,0,0);
-    ctx.restore();
-    ctx.textAlign='left';ctx.font=sel?'bold 11px monospace':'11px monospace';
-    ctx.fillStyle=it.type==='go'?'#7dffc8':(sel?'#fff':(afford?'#aeb6c4':'#78808e'));
-    ctx.fillText(it.label,44,y);
-    if(it.cost>0){ctx.textAlign='right';ctx.font='bold 11px monospace';
-      ctx.fillStyle=afford?'#9fff9f':'#ff8a7a';
-      ctx.fillText('$'+it.cost,W-10,y);}}
-  /* scroll position, drawn as a rail so it can never sit on a label */
-  if(items.length>visible){
-    const y0=SHOP_TOP-13,h=visible*SHOP_STEP;
-    ctx.fillStyle='rgba(90,100,116,0.22)';ctx.fillRect(W-4,y0,2,h);
-    const th=Math.max(10,h*visible/items.length),
-      ty=y0+(h-th)*(start/(items.length-visible));
-    ctx.fillStyle='#ffd76a';ctx.fillRect(W-4,ty,2,th);}
-  /* detail line for whatever is highlighted */
-  const cur=items[shopSel];
-  ctx.font='9px monospace';ctx.textAlign='center';ctx.fillStyle='#8fa0b3';
-  let detail='';
-  if(cur.type==='item')detail=ITEMS[cur.k].desc+'  \u00b7  deploy from the top bar';
-  else if(cur.type==='buy')detail='DMG '+WEAPONS[cur.k].dmg+'  \u00b7  ROF '+WEAPONS[cur.k].rof+
-    '  \u00b7  RANGE '+WEAPONS[cur.k].range;
-  else if(cur.type==='med')detail='Patch up before the next stop ('+Math.ceil(SV.hp)+'/'+SV.maxHp+')';
-  else if(cur.type==='hp')detail='Permanent health increase';
-  if(detail)ctx.fillText(detail,W/2,H-22);
-  ctx.fillStyle='#6f7a8a';ctx.font='9px monospace';
-  ctx.fillText('tap a row to select \u00b7 tap again or SELECT to buy',W/2,H-7);}
+  ctx.fillStyle='#ffd76a';ctx.fillText('ARMORY',34,20);
+  ctx.textAlign='right';ctx.fillStyle='#9fff9f';ctx.fillText('$'+SV.cash,W-8,20);
+  const items=gridShopItems();
+  if(shopSel>=items.length)shopSel=items.length-1;
+  const pages=Math.max(1,Math.ceil(items.length/SHOP_PER)),
+    page=Math.floor(shopSel/SHOP_PER);
+  /* paging arrows */
+  const drawArrow=(x,dir,on)=>{
+    ctx.fillStyle=on?'rgba(255,215,106,0.12)':'rgba(90,100,116,0.08)';
+    ctx.fillRect(x,SHOP_GY,20,SHOP_ROWS*SHOP_TH);
+    ctx.textAlign='center';ctx.font='bold 14px monospace';
+    ctx.fillStyle=on?'#ffd76a':'#3d4450';
+    ctx.fillText(dir,x+10,SHOP_GY+SHOP_ROWS*SHOP_TH/2+5);};
+  drawArrow(3,'\u2039',page>0);
+  drawArrow(W-23,'\u203a',page<pages-1);
+  /* tiles */
+  for(let t=0;t<SHOP_PER;t++){
+    const idx=page*SHOP_PER+t;
+    if(idx>=items.length)break;
+    const it=items[idx],
+      col=t%SHOP_COLS,row=(t/SHOP_COLS)|0,
+      x=SHOP_GX+col*SHOP_TW,y=SHOP_GY+row*SHOP_TH,
+      sel=idx===shopSel,afford=SV.cash>=it.cost;
+    ctx.fillStyle=sel?'rgba(40,36,18,0.95)':'rgba(18,22,32,0.85)';
+    ctx.fillRect(x+1,y+1,SHOP_TW-2,SHOP_TH-2);
+    ctx.strokeStyle=sel?'#ffd76a':'rgba(70,80,96,0.5)';
+    ctx.lineWidth=sel?1.5:1;
+    ctx.strokeRect(x+1.5,y+1.5,SHOP_TW-3,SHOP_TH-3);
+    ctx.save();
+    if(!afford&&it.cost>0)ctx.globalAlpha=0.42;
+    ctx.translate(x+SHOP_TW/2-10,y+5);ctx.scale(1.25,1.25);
+    shopIcon(it,0,0);ctx.restore();
+    /* price line */
+    ctx.textAlign='center';ctx.font='bold 7px monospace';
+    ctx.fillStyle=it.cost>0?(afford?'#9fff9f':'#ff8a7a'):'#7dffc8';
+    ctx.fillText(it.cost>0?'$'+it.cost:'',x+SHOP_TW/2,y+SHOP_TH-4);
+    /* corner badge */
+    const bg=shopBadge(it);
+    if(bg!==''){ctx.textAlign='right';ctx.font='6px monospace';
+      ctx.fillStyle='#8fa0b3';ctx.fillText(bg,x+SHOP_TW-3,y+9);}
+    /* type stripe: guns gold, ammo brass, items blue, upgrades green */
+    ctx.fillStyle=it.type==='buy'?'#ffd76a':(it.type==='ammo'?'#c8b45a'
+      :(it.type==='item'?'#8ac8ff':(it.type==='med'?'#ff8a8a':'#7dffc8')));
+    ctx.fillRect(x+1,y+1,3,3);}
+  /* page dots */
+  ctx.textAlign='center';
+  for(let p2=0;p2<pages;p2++){
+    ctx.fillStyle=p2===page?'#ffd76a':'rgba(120,132,150,0.35)';
+    ctx.beginPath();ctx.arc(W/2+(p2-(pages-1)/2)*10,SHOP_GY+SHOP_ROWS*SHOP_TH+7,2,0,7);ctx.fill();}
+  /* ---- detail panel ---- */
+  const it=items[shopSel];
+  const py2=SHOP_GY+SHOP_ROWS*SHOP_TH+13,ph2=H-py2-16;
+  ctx.fillStyle='#171b26';ctx.fillRect(6,py2,W-12,ph2);
+  ctx.strokeStyle='#2a3346';ctx.lineWidth=1;ctx.strokeRect(6.5,py2+.5,W-13,ph2-1);
+  rowDecor('shop',shopSel,6,py2,W-12,ph2,false);
+  ctx.save();ctx.translate(16,py2+ph2/2-9);ctx.scale(1.7,1.7);shopIcon(it,0,0);ctx.restore();
+  ctx.textAlign='left';ctx.font='bold 10px monospace';
+  ctx.fillStyle='#fff';
+  const nm2=it.type==='buy'?WEAPONS[it.k].name
+    :(it.type==='ammo'?WEAPONS[it.k].name+' AMMO'
+    :(it.type==='d'||it.type==='r'?WEAPONS[it.k].name+(it.type==='d'?' \u2014 DAMAGE':' \u2014 RATE')
+    :(it.type==='item'?ITEMS[it.k].name
+    :(it.type==='med'?'FIELD MEDKIT':'TOUGHER HIDE'))));
+  ctx.fillText(nm2,52,py2+13);
+  ctx.font='8px monospace';ctx.fillStyle='#8fa0b3';
+  ctx.fillText(shopDesc(it),52,py2+25);
+  ctx.textAlign='right';ctx.font='bold 12px monospace';
+  const afford2=SV.cash>=it.cost;
+  ctx.fillStyle=isArmed('shop',shopSel)?'#7dffc8':(afford2?'#9fff9f':'#ff8a7a');
+  ctx.fillText(isArmed('shop',shopSel)?'TAP TO BUY':'$'+it.cost,W-12,py2+ph2/2+4);
+  ctx.textAlign='center';ctx.font='8px monospace';ctx.fillStyle='#5a6472';
+  ctx.fillText('tap an item \u00b7 buying always asks twice \u00b7 \u2039 back to the road',W/2,H-6);
+}
 </script>
 </body>
 </html>
