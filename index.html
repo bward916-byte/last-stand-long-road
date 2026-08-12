@@ -590,6 +590,33 @@ const BIOMES=[
   lampC:'#e8d0a8',tint:'rgba(150,120,90,0.12)',dark:.53,
   flavor:['Row after row, every tree picked clean a long time ago.',
           'The crows leave when you get close. They come straight back.']},
+ {name:'THE CALDERA',out:1,para:'volcano',weather:'ash',sky:['#1a0806','#5a1c0e'],
+  fs:'#4a3830',fd:'#2a1e18',ext:'#140806',amb:'ember',props:[15,0,1,15,3],
+  lampC:'#ff9a4a',tint:'rgba(255,90,30,0.13)',dark:.42,
+  flavor:['The mountain never stopped burning. Neither did they.',
+          'Step where the ground is grey. The orange ground is not ground.']},
+ {name:'THE FROZEN SOUND',out:1,para:'floe',weather:'snow',sky:['#0a1220','#2a4258'],
+  fs:'#c8dcea',fd:'#7a97ac',ext:'#081018',amb:'none',props:[15,0,9,15,1],
+  lampC:'#bfe8ff',tint:'rgba(140,190,235,0.14)',dark:.44,
+  flavor:['The sound froze in slabs. The slabs did not freeze all the way.',
+          'Black water between the bergs. Nothing comes back out of it.']},
+ {name:'THE SCREE',out:1,para:'crag',weather:'none',sky:['#161a22',
+  '#3d4450'],
+  fs:'#6a6f78',fd:'#3d4148',ext:'#0c0e14',amb:'dust',props:[15,0,1,15,2],
+  lampC:'#c8d4e8',tint:'rgba(130,140,160,0.11)',dark:.47,
+  flavor:['Loose rock all the way up. Every step starts a small avalanche.',
+          'They fall from the ledges and get up again. You will not.']},
+ {name:'THE BLEACHED FLATS',out:1,para:'desert',weather:'none',sky:['#7a4a20','#d8a860'],
+  fs:'#d0b070',fd:'#96794a',ext:'#2a1c0a',amb:'dust',props:[15,0,1,15,3],
+  lampC:'#ffe0a0',tint:'rgba(255,220,150,0.14)',dark:.40,
+  flavor:['White sand, white bones, white sky. The heat does not care that they are dead.',
+          'The buzzards circle you, not them. The buzzards know things.']},
+ {name:'THE HIGH MESAS',out:1,para:'mesa',weather:'none',sky:['#3a1a10',
+  '#b06838'],
+  fs:'#a06a3a',fd:'#6a4224',ext:'#1c0e06',amb:'dust',props:[15,0,1,15,2],
+  lampC:'#ffc27a',tint:'rgba(230,150,80,0.12)',dark:.46,
+  flavor:['Stone tables stacked to the sky. The wind up here has teeth.',
+          'You can see tomorrow\u2019s road from the rim. It does not look easier.']},
  {name:'NEON STRIP',       wa:'#2a1f3d',wb:'#231a33',fs:'#453257',fd:'#332545',ext:'#120c1a',pipe:'#503a66',win:'glow',amb:'dust',    props:[13,10,5,4,10],lampC:'#ff8ae0',tint:'rgba(230,110,220,0.13)',dark:.47,
   flavor:['Half the signs still run. Nobody left to read them.',
           'A slot machine pays out to an empty stool, over and over.']}];
@@ -645,7 +672,12 @@ const TERRAIN={
   shelf:  {amp:20,wl:170,rough:0.25,steps:4,plateau:0.42,cliffs:4,cliffH:[13,21]},
   roll:   {amp:15,wl:190,rough:0.30,steps:0,plateau:0.12,cliffs:1,cliffH:[13,18]},
   rubble: {amp:19,wl:96, rough:0.75,steps:2,plateau:0.10,cliffs:3,cliffH:[13,20]},
-  road:   {amp:8, wl:280,rough:0.20,steps:0,plateau:0.05,cliffs:0}};
+  road:   {amp:8, wl:280,rough:0.20,steps:0,plateau:0.05,cliffs:0},
+  crag:   {amp:42,wl:118,rough:0.80,steps:3,plateau:0.24,cliffs:7,cliffH:[14,24]},
+  lava:   {amp:22,wl:130,rough:0.50,steps:0,plateau:0.12,cliffs:2,cliffH:[13,18]},
+  floe:   {amp:7, wl:180,rough:0.25,steps:2,plateau:0.35,cliffs:0},
+  desert: {amp:10,wl:270,rough:0.10,steps:0,plateau:0.06,cliffs:0},
+  mesa:   {amp:40,wl:142,rough:0.30,steps:6,plateau:0.55,cliffs:5,cliffH:[15,24]}};
 function terrainStyle(B,drive){
   if(drive)return 'road';
   if(!B.out)return 'road';          /* interiors and streets stay near-flat */
@@ -654,6 +686,11 @@ function terrainStyle(B,drive){
     case 'dunes':    return 'dune';
     case 'coast':    return 'shelf';
     case 'wastes':   return 'rubble';
+    case 'crag':     return 'crag';
+    case 'volcano':  return 'lava';
+    case 'floe':     return 'floe';
+    case 'desert':   return 'desert';
+    case 'mesa':     return 'mesa';
     case 'highway':  return 'road';
     case 'bridge':   return 'road';
     default:         return 'roll';}}
@@ -685,9 +722,44 @@ function buildRelief(){
   /* ends flat so the start point and extraction are never on a face */
   for(let i=0;i<8;i++){const k=i/8;
     h[i]*=k;h[n-1-i]*=k;}
+  /* no face taller than a jump, approached from either side — runs last */
+  const MAXF=24;
+  for(let i=0;i<n-1;i++)if(h[i+1]-h[i]>MAXF)h[i+1]=h[i]+MAXF;
+  for(let i=n-1;i>0;i--)if(h[i-1]-h[i]>MAXF)h[i-1]=h[i]+MAXF;
   relief=h;}
 
 /* --- terrain silhouette, used for both fill and clipping --- */
+/* floe levels have open water between the bergs; volcano levels have lava */
+let gaps=[],lavas=[];
+function inSpan(spans,x){for(const g2 of spans)if(x>g2.a&&x<g2.b)return g2;return null;}
+function solidX(x){
+  const g2=inSpan(gaps,x);if(!g2)return x;
+  return (x-g2.a<g2.b-x)?g2.a-8:g2.b+8;}
+function buildHazSpans(){
+  gaps=[];lavas=[];
+  if(!lvl||!lvl.biome||lvl.floors!==1||lvl.drive)return;
+  const pa=lvl.biome.para;
+  if(pa!=='floe'&&pa!=='volcano')return;
+  seed=lvl.n*577+11;
+  const spans=pa==='floe'?gaps:lavas,
+    nSp=pa==='floe'?3+(lvl.width>1700?2:1):2+(rnd()<0.5?1:0),
+    wMin=pa==='floe'?22:20,wMax=pa==='floe'?28:30;
+  for(let i=0;i<nSp;i++){
+    for(let tries=0;tries<14;tries++){
+      const cx2=(150+rnd()*(lvl.width-300))|0,
+        w2=(wMin+rnd()*(wMax-wMin))|0,a=cx2-w2/2,b=cx2+w2/2;
+      let ok=Math.abs(cx2-lvl.ext.x)>70&&Math.abs(cx2-lvl.start.x)>90;
+      if(lvl.holdX)ok=ok&&Math.abs(cx2-lvl.holdX)>60;
+      if(lvl.cageX)ok=ok&&Math.abs(cx2-lvl.cageX)>50;
+      for(const o of spans)if(Math.abs(cx2-(o.a+o.b)/2)<150)ok=false;
+      for(const c of (lvl.cellars||[]))if(Math.abs(cx2-c.wall)<80)ok=false;
+      if(!ok)continue;
+      spans.push({a,b});break;}}
+  /* the water sits low: flatten the relief near every gap edge */
+  if(relief)for(const g2 of spans)
+    for(let x=g2.a-10;x<=g2.b+10;x+=RSTEP){
+      const i2=(x/RSTEP)|0;
+      if(i2>=0&&i2<relief.length)relief[i2]=Math.min(relief[i2],3);}}
 function wallBetween(x1,x2){
   if(!lvl||!lvl.cellars)return false;
   const lo=Math.min(x1,x2),hi=Math.max(x1,x2);
@@ -763,7 +835,7 @@ function levelCfg(n){
     else if(biome.out&&dr<0.12)disaster='twister';}
   /* cellars: the surface is blocked; the only way on is down and under */
   const cellars=[];
-  if(!drive&&floors===1&&n>=3&&rnd()<0.38){
+  if(!drive&&floors===1&&n>=3&&biome.para!=='floe'&&biome.para!=='volcano'&&rnd()<0.38){
     const nCell=(n>=8&&rnd()<0.4)?2:1;
     for(let ci=0;ci<nCell;ci++){
       const frac=nCell===1?(0.38+rnd()*0.24):(0.28+ci*0.36+rnd()*0.10),
@@ -824,14 +896,15 @@ function startLevel(n){
   P={x:lvl.start.x,f:lvl.start.f,y:gnd(lvl.start.x,lvl.start.f),vx:0,vy:0,air:false,jumpT:0,
     dir:1,hp:clamp(SV.hp,1,SV.maxHp),
     fireT:0,climb:null,anim:0,hurtT:0,hazT:0,muzzleT:0,target:null,
-    drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0,taughtCellar:0};
+    drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0,taughtCellar:0,taughtLava:0,taughtGap:0};
   zombies=[];bullets=[];spits=[];cash=[];parts=[];decals=[];corpses=[];rings=[];lights=[];
   hazards=[];shake=0;flashT=0;hitStop=0;punchX=punchY=0;combo=0;comboT=0;
   turbo=0;turboT=0;lensBlood=[];finisher=null;
   throwns=[];fires=[];turrets=[];strikes=[];ammoDrops=[];levelT=0;itemMsgT=0;
   holdT=lvl.holdNeed||0;holdStarted=false;holdWaveT=0;
-  cps=(lvl.cps||[]).map(x=>({x,hit:false}));
+  cps=(lvl.cps||[]).map(x=>({x:solidX(x),hit:false}));
   stashes=[];
+  buildHazSpans();
   pilgrimT=(!lvl.drive&&lvl.n>=16&&SV.storyAt>=7&&!SV.pilgrimDead
     &&rnd()<0.22)?(14+rnd()*10):0;
   meteors=[];hooks=[];bolts=[];disT=lvl.disaster?7+Math.random()*6:0;disLeft=lvl.disaster==='meteor'?8:0;
@@ -850,7 +923,7 @@ function startLevel(n){
         for(const c of (lvl.cellars||[]))if(Math.abs(sx-c.wall)<28)ok=false;
         for(const o of stashes)if(Math.abs(sx-o.x)<70)ok=false;
         if(!ok)continue;
-        stashes.push({x:sx,f:(rnd()*lvl.floors)|0,t:0,done:false,
+        stashes.push({x:solidX(sx),f:(rnd()*lvl.floors)|0,t:0,done:false,
           kind:['bag','trunk','cabinet'][(rnd()*3)|0]});
         break;}}}
   surges=0;surgeNext=46;
@@ -903,8 +976,13 @@ function startLevel(n){
         :(pa==='mountain'?(rnd()<0.5?4:-1)
         :(pa==='orchard'?(rnd()<0.55?5:1)
         :(pa==='coast'?(rnd()<0.45?6:-1)
+        :(pa==='desert'?(rnd()<0.5?7:8)
+        :(pa==='mesa'?(rnd()<0.4?7:3)
+        :(pa==='floe'?(rnd()<0.5?9:-1)
+        :(pa==='volcano'?(rnd()<0.4?10:-1)
+        :(pa==='crag'?(rnd()<0.4?4:-1)
         :(pa==='canyon'?(rnd()<0.35?3:-1)
-        :(pa==='meadow'||pa==='forest'?1:(rnd()<0.25?1:-1))))))));
+        :(pa==='meadow'||pa==='forest'?1:(rnd()<0.25?1:-1)))))))))))));
       if(k>=0)fg.push({x:x|0,k,ph:rnd()*9,s:0.8+rnd()*0.5});}
   }
   ltTimer=lvl.biome.weather==='storm'?2+rnd()*3:9;
@@ -944,7 +1022,7 @@ function spawnSomewhere(t,minGap){
   const f=(rnd()*lvl.floors)|0;let x=(60+rnd()*(lvl.width-90))|0;
   const ax=P?P.x:lvl.start.x,af=P?P.f:lvl.start.f;
   if(f===af&&Math.abs(x-ax)<gap)x=clamp(x+(ax<lvl.width/2?gap:-gap),30,lvl.width-30);
-  spawnZombie(t,x,f);}
+  spawnZombie(t,solidX(x),f);}
 function releaseWave(){
   if(!wavePool.length)return;
   const g=wavePool.shift();waveLeft=wavePool.length;waveAt++;
@@ -963,7 +1041,7 @@ function spawnZombie(t,x,f){
     dir:Math.random()<.5?-1:1,atkT:0,spitT:1+Math.random()*2,anim:Math.random()*10,
     flash:0,rageT:0,coolT:0,fuseT:-1,climb:null,burn:0,repathT:0,dashT:0,lungeT:1+Math.random()*2,
     fly:!!B.fly,alt:B.fly?26+Math.random()*10:0,swoop:0,bob:Math.random()*7,
-    windup:0,slamCd:2+Math.random()*2,aff:null});
+    windup:0,slamCd:2+Math.random()*2,aff:null,smart:Math.random()<0.75});
   /* elites: a cut of every roster comes back wrong in a new way */
   const z2=zombies[zombies.length-1];
   if(!z2.fly&&t!=='boss'&&t!=='abom'&&t!=='giant'
@@ -1748,6 +1826,10 @@ function update(dt){
         const rise=gnd(P.x,0)-gnd(nx,0);
         if(rise>STEP_MAX){P.vx=0;P.blockT=0.25;
           if(!P.taughtJump){P.taughtJump=1;itemToast('TOO STEEP \u2014 PRESS UP TO JUMP');}}
+        if(gaps.length&&!P.taughtGap){
+          for(const g2 of gaps)
+            if(Math.abs(P.x-((g2.a+g2.b)/2))<46){P.taughtGap=1;
+              itemToast('BLACK WATER \u2014 JUMP OR DIE');break;}}
         if(lvl.cellars&&lvl.cellars.length&&!P.taughtCellar){
           for(const c2 of lvl.cellars)
             if(Math.abs(P.x-c2.wall)<24&&P.f===0){P.taughtCellar=1;
@@ -1881,6 +1963,15 @@ function update(dt){
     const z=P.target;
     P.dir=z.x>P.x?1:-1;
     if(SV.cur!=='pistol'&&SV.ammo&&typeof SV.ammo[SV.cur]==='number')SV.ammo[SV.cur]--;
+    /* muzzle pressed to the body: elevation can't save it */
+    if(Math.abs(z.x-P.x)<14&&z.hp>0){
+      P.fireT=1/wRof(wk);P.muzzleT=0.06;sfx(wp.snd);
+      const dmg0=wDmg(wk)*wp.pellets;
+      z.hp-=dmg0;z.flash=.1;
+      gore(z.x,zMid(z),z.f,-P.dir,Math.min(4,1+dmg0/14));
+      if(z.hp<=0)killZombie(z);
+      shake=Math.min(shake+0.6,2.5);
+      return;}
     P.fireT=1/wRof(wk);P.muzzleT=0.06;
     sfx(wp.snd);shake=Math.min(shake+0.6,2.5);
     const kick=Math.min(3.2,0.5+wp.dmg*0.06+(wp.pellets-1)*0.35);
@@ -2115,6 +2206,10 @@ function update(dt){
         let zx=z.x+z.dir*z.sp*rage*dt;
         if(z.f===0)zx=clampWalls(zx,z.x);
         else if(z.f===1&&lvl.cellars&&lvl.cellars.length)zx=tunnelClamp(zx);
+        /* most of them balk at open water; the reckless and the raging go in */
+        if(gaps.length&&z.f===0&&z.smart&&rage<=1.01){
+          const g3=inSpan(gaps,zx);
+          if(g3&&!inSpan(gaps,z.x))zx=z.dir>0?g3.a-2:g3.b+2;}
         z.x=zx;z.anim+=dt*6*rage;
       }else if(z.atkT<=0){z.atkT=0.8;hurtPlayer(z.dmg);}
     }else{
@@ -2267,6 +2362,39 @@ function update(dt){
         color:'#8fd0ff',trail:[]});
       sfx('shot');ally.muzzleT=0.05;}
     if(ally.muzzleT>0)ally.muzzleT-=dt;}
+  /* --- open water: fall in and you are gone --- */
+  if(!frozen&&gaps.length&&P.f===0&&!P.climb&&!P.air&&P.hp>0){
+    if(inSpan(gaps,P.x)){
+      P.hp=0;sfx('deadWet');shake=7;flashT=0.2;
+      for(let q=0;q<14;q++)parts.push({x:P.x+(Math.random()-0.5)*10,y:gnd(P.x,0),
+        vx:(Math.random()-0.5)*90,vy:-40-Math.random()*80,life:.6,
+        c:'rgba(140,190,230,0.8)',s:2,g:1,fy:gnd(P.x,0)+4});
+      state='over';overSel=0;stopDrone();
+      toast('THE WATER TAKES YOU',3,'Nothing comes back out of it.');}}
+  if(!frozen&&gaps.length)for(const z of zombies.slice()){
+    if(z.f!==0||z.climb||z.fly||z.hp<=0)continue;
+    if(inSpan(gaps,z.x)){
+      z.hp=0;
+      for(let q=0;q<8;q++)parts.push({x:z.x,y:gnd(z.x,0),
+        vx:(Math.random()-0.5)*70,vy:-30-Math.random()*60,life:.5,
+        c:'rgba(140,190,230,0.7)',s:2,g:1,fy:gnd(z.x,0)+4});
+      sfx('deadWet');
+      if(!z.noCount)killsLeft--;SV.kills=(SV.kills||0)+1;
+      zombies.splice(zombies.indexOf(z),1);}}
+  /* --- lava: crossable, at a price --- */
+  if(!frozen&&lavas.length){
+    if(P.f===0&&!P.climb&&!P.air&&inSpan(lavas,P.x)){
+      P.hazT=(P.hazT||0)+dt;
+      if(P.hurtT<=0){hurtPlayer(6);
+        if(!P.taughtLava){P.taughtLava=1;itemToast('LAVA \u2014 JUMP ACROSS');}}
+      if(Math.random()<0.5)parts.push({x:P.x+(Math.random()-0.5)*6,y:P.y-2,
+        vx:(Math.random()-0.5)*30,vy:-40-Math.random()*40,life:.4,
+        c:Math.random()<.5?'#ff9a3a':'#ffce6a',s:1});}
+    for(const z of zombies){
+      if(z.f!==0||z.climb||z.fly||z.hp<=0)continue;
+      if(inSpan(lavas,z.x)&&z.aff!=='burn'&&z.t!=='hazmat'){
+        z.hp-=26*dt;z.burn=0.4;
+        if(z.hp<=0)killZombie(z);}}}
   /* --- scavenging: stand at a stash to rifle through it --- */
   if(!frozen)for(const st of stashes){
     if(st.done)continue;
@@ -2971,6 +3099,99 @@ function drawOutdoor(B){
         ctx.strokeStyle='rgba(18,16,14,0.8)';ctx.lineWidth=1.2;
         ctx.beginPath();ctx.moveTo(bx-4,by+w2);ctx.lineTo(bx,by-1);ctx.lineTo(bx+4,by+w2);ctx.stroke();}});
   }
+  if(B.para==='volcano'){
+    layer(0.14,(x0,x1)=>{ /* the burning mountain */
+      ctx.fillStyle='#241010';
+      ctx.beginPath();ctx.moveTo(x0,gy);
+      for(let x=x0;x<=x1;x+=8){
+        const h3=90*(0.5+0.5*Math.sin((x+40)*0.004))+30*Math.sin(x*0.013);
+        ctx.lineTo(x,gy-h3);}
+      ctx.lineTo(x1,gy);ctx.fill();
+      /* lava streaks running down it */
+      for(let x=Math.floor(x0/120)*120;x<x1;x+=120){
+        const gl2=0.5+0.4*Math.sin(frame*0.05+x);
+        ctx.strokeStyle='rgba(255,110,30,'+(0.5*gl2)+')';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(x,gy-70-20*Math.sin(x*0.01));
+        ctx.quadraticCurveTo(x+8,gy-40,x+4,gy-8);ctx.stroke();}
+      /* the glow above the rim */
+      const gg=ctx.createLinearGradient(0,gy-140,0,gy-60);
+      gg.addColorStop(0,'rgba(255,80,20,0)');gg.addColorStop(1,'rgba(255,80,20,0.16)');
+      ctx.fillStyle=gg;ctx.fillRect(x0,gy-140,x1-x0,80);});
+    layer(0.32,(x0,x1)=>ridge(x0,x1,gy-2,60,96,50,'#1c0e0c'));
+    layer(0.20,(x0,x1)=>{ /* smoke column drifting */
+      for(let i=0;i<4;i++){
+        const sx2=x0+((x1-x0)*0.4)+i*14+Math.sin(frame*0.02+i)*8,
+          sy2=gy-100-i*16;
+        ctx.fillStyle='rgba(60,50,50,'+(0.28-i*0.05)+')';
+        ctx.beginPath();ctx.ellipse(sx2,sy2,14+i*6,7+i*3,0,0,7);ctx.fill();}});
+  }else if(B.para==='floe'){
+    layer(0.16,(x0,x1)=>{ /* aurora */
+      for(let i=0;i<3;i++){
+        ctx.fillStyle=['rgba(80,255,180,0.06)','rgba(120,180,255,0.05)','rgba(180,120,255,0.04)'][i];
+        ctx.beginPath();
+        for(let x=x0;x<=x1;x+=10){
+          const yy=-90-i*18+Math.sin(x*0.008+frame*0.014+i*2)*16;
+          if(x===x0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy);}
+        for(let x=x1;x>=x0;x-=10){
+          const yy=-52-i*18+Math.sin(x*0.008+frame*0.014+i*2)*16;
+          ctx.lineTo(x,yy);}
+        ctx.closePath();ctx.fill();}});
+    layer(0.26,(x0,x1)=>{ /* far bergs on a pale sea */
+      ctx.fillStyle='#1a2c3c';ctx.fillRect(x0,gy-26,x1-x0,26);
+      ctx.fillStyle='#8fb3c8';
+      for(let x=Math.floor(x0/150)*150;x<x1;x+=150){
+        const h3=10+((x*13)%12);
+        ctx.beginPath();ctx.moveTo(x,gy-26);ctx.lineTo(x+18,gy-26-h3);
+        ctx.lineTo(x+40,gy-26);ctx.fill();}});
+    layer(0.42,(x0,x1)=>{
+      ctx.fillStyle='rgba(200,230,250,0.14)';
+      for(let i=0;i<4;i++){const yy=gy-18+i*4,off=(frame*(0.15+i*0.08))%26;
+        for(let x=Math.floor(x0/26)*26-off;x<x1;x+=26)ctx.fillRect(x,yy,12,1);}});
+  }else if(B.para==='crag'){
+    layer(0.15,(x0,x1)=>ridge(x0,x1,gy-8,128,170,20,'#1c202a','#3d4652'));
+    layer(0.32,(x0,x1)=>{ridge(x0,x1,gy-2,84,110,260,'#242a34');
+      /* boulders wedged on the slope */
+      ctx.fillStyle='#333a46';
+      for(let x=Math.floor(x0/64)*64;x<x1;x+=64){
+        const bs2=5+((x*7)%7);
+        ctx.fillRect(x,gy-30-((x*11)%30),bs2,bs2*0.8);}});
+    layer(0.50,(x0,x1)=>{ctx.fillStyle='#2c323c';
+      for(let x=Math.floor(x0/38)*38;x<x1;x+=38){
+        const h3=12+((x*13)%14);
+        ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x+9,gy-h3);
+        ctx.lineTo(x+19,gy-h3*0.4);ctx.lineTo(x+30,gy);ctx.fill();}});
+  }else if(B.para==='desert'){
+    layer(0.18,(x0,x1)=>hill(x0,x1,gy-16,14,300,0,'#b08a4e'));
+    layer(0.34,(x0,x1)=>{hill(x0,x1,gy-4,10,190,140,'#c09a58');
+      /* heat shimmer */
+      ctx.fillStyle='rgba(255,240,200,'+(0.05+0.03*Math.sin(frame*0.11))+')';
+      ctx.fillRect(x0,gy-26,x1-x0,18);});
+    layer(0.24,(x0,x1)=>{ /* buzzards riding the heat */
+      for(let i=0;i<3;i++){
+        const bx=x0+((frame*(0.3+i*0.14)+i*300)%(x1-x0)),
+          by=gy-96-((i*31)%30)+Math.sin(frame*0.03+i*2)*9,
+          w2=Math.sin(frame*0.10+i)*2.2;
+        ctx.strokeStyle='rgba(40,30,18,0.75)';ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.moveTo(bx-5,by+w2);ctx.lineTo(bx,by-1);ctx.lineTo(bx+5,by+w2);ctx.stroke();}});
+  }else if(B.para==='mesa'){
+    layer(0.16,(x0,x1)=>{ctx.fillStyle='#5a3018';
+      for(let x=Math.floor(x0/170)*170;x<x1;x+=170){
+        const h3=84+((x*13)%40);
+        ctx.fillRect(x,gy-h3,130,h3);
+        ctx.fillStyle='rgba(0,0,0,0.14)';
+        ctx.fillRect(x,gy-h3+16,130,5);ctx.fillRect(x,gy-h3+42,130,4);
+        ctx.fillStyle='#5a3018';}});
+    layer(0.34,(x0,x1)=>{ctx.fillStyle='#6d3c1e';
+      for(let x=Math.floor(x0/104)*104;x<x1;x+=104){
+        const h3=50+((x*17)%30);
+        ctx.fillRect(x+10,gy-h3,66,h3);
+        ctx.fillStyle='#7d4826';ctx.fillRect(x+10,gy-h3,66,5);
+        ctx.fillStyle='#6d3c1e';}});
+    layer(0.52,(x0,x1)=>{ctx.fillStyle='#7a482a';
+      for(let x=Math.floor(x0/48)*48;x<x1;x+=48){
+        const h3=16+((x*11)%16);
+        ctx.fillRect(x,gy-h3,6,h3);ctx.fillRect(x-2,gy-h3-4,10,5);}});
+  }
   /* --- original single-depth sets --- */
   const po=cam.x*0.5,step=(v,s2)=>{seed=s2;return v;};
   ctx.save();ctx.translate(po,0);
@@ -3059,6 +3280,34 @@ function drawOutdoor(B){
         if(dl>0.6&&dr>0.6)ctx.fillRect(x-6,gy-h0+1,13,2);}}
     ctx.fillStyle='rgba(0,0,0,0.4)';
     ctx.fillRect(-24,gy+24,lvl.width+48,20);
+  /* open water between the bergs */
+  for(const g2 of gaps){
+    const wy=gy-2;
+    ctx.fillStyle='#060b12';
+    ctx.fillRect(g2.a,wy,g2.b-g2.a,60);
+    ctx.fillStyle='rgba(120,180,220,0.35)';
+    const off2=(frame*0.4)%10;
+    for(let x=g2.a+2-off2;x<g2.b-2;x+=10)
+      if(x>g2.a)ctx.fillRect(x,wy+1+Math.sin(x+frame*0.08)*0.8,5,1);
+    /* berg walls */
+    ctx.fillStyle='#e2eef8';
+    ctx.fillRect(g2.a-3,wy-reliefAt(g2.a-4)-2,3,60);
+    ctx.fillRect(g2.b,wy-reliefAt(g2.b+4)-2,3,60);
+    ctx.fillStyle='rgba(140,170,200,0.5)';
+    ctx.fillRect(g2.a-3,wy+16,3,44);ctx.fillRect(g2.b,wy+16,3,44);}
+  /* lava pools */
+  for(const g2 of lavas){
+    const ly=gy-1,gl3=0.6+0.3*Math.sin(frame*0.09);
+    ctx.fillStyle='#7a1c08';ctx.fillRect(g2.a,ly,g2.b-g2.a,40);
+    ctx.fillStyle='rgba(255,120,30,'+(0.75*gl3)+')';
+    ctx.fillRect(g2.a,ly,g2.b-g2.a,3);
+    ctx.fillStyle='rgba(255,200,90,'+(0.6*gl3)+')';
+    for(let x=g2.a+3;x<g2.b-3;x+=9)
+      ctx.fillRect(x+Math.sin(frame*0.06+x)*1.5,ly+1,3,1.5);
+    lights.push({x:(g2.a+g2.b)/2,y:ly,r:(g2.b-g2.a)*0.9*gl3,t:.03});
+    if(Math.random()<0.15)parts.push({x:g2.a+Math.random()*(g2.b-g2.a),y:ly,
+      vx:(Math.random()-0.5)*20,vy:-30-Math.random()*30,life:.5,
+      c:Math.random()<.5?'#ff9a3a':'#ffce6a',s:1});}
   /* ---- underground: earth, tunnels, hatches, and whatever blocks the road ---- */
   if(lvl.cellars&&lvl.cellars.length){
     const ty1=groundY(1),tTop=ty1-18;
@@ -3595,6 +3844,36 @@ function drawWorld(){
         ctx.strokeStyle='rgba(60,86,62,0.8)';ctx.lineWidth=1;
         ctx.beginPath();ctx.moveTo(v.x-6,gy);
         ctx.quadraticCurveTo(v.x+sw,gy-7,v.x+7,gy-1);ctx.stroke();
+      }else if(v.k===7){ /* saguaro */
+        const h4=(20+((v.x*7)%12))*v.s;
+        ctx.fillStyle=(v.x*13)%3?'#3d6a3c':'#4a7a46';
+        ctx.fillRect(v.x-2,gy-h4,4,h4);
+        ctx.fillRect(v.x-8,gy-h4*0.62,3,h4*0.30);
+        ctx.fillRect(v.x-8,gy-h4*0.62,7,3);
+        ctx.fillRect(v.x+5,gy-h4*0.74,3,h4*0.36);
+        ctx.fillRect(v.x+2,gy-h4*0.74,6,3);
+        ctx.fillStyle='rgba(255,255,255,0.14)';
+        for(let yy=gy-h4+2;yy<gy-2;yy+=4)ctx.fillRect(v.x-1,yy,1,2);
+      }else if(v.k===8){ /* bleached bones */
+        ctx.fillStyle='#e8e2d0';
+        ctx.fillRect(v.x-6,gy-2,12,2);
+        ctx.fillRect(v.x-4,gy-4,3,2);ctx.fillRect(v.x+2,gy-4,3,2);
+        ctx.fillRect(v.x-1,gy-6,4,4);
+        ctx.fillStyle='#1a1610';ctx.fillRect(v.x,gy-5,1,1);ctx.fillRect(v.x+2,gy-5,1,1);
+      }else if(v.k===9){ /* ice shards */
+        ctx.fillStyle='rgba(210,235,250,0.9)';
+        ctx.beginPath();ctx.moveTo(v.x-4,gy);ctx.lineTo(v.x-2+sw*0.3,gy-11*v.s);
+        ctx.lineTo(v.x,gy);ctx.fill();
+        ctx.beginPath();ctx.moveTo(v.x+1,gy);ctx.lineTo(v.x+4+sw*0.2,gy-7*v.s);
+        ctx.lineTo(v.x+6,gy);ctx.fill();
+        ctx.fillStyle='rgba(140,180,220,0.5)';
+        ctx.fillRect(v.x-3,gy-6*v.s,1,5*v.s);
+      }else if(v.k===10){ /* steam vent with embers */
+        ctx.fillStyle='#3a2c24';
+        ctx.fillRect(v.x-4,gy-4,8,4);ctx.fillRect(v.x-2,gy-6,4,2);
+        const em=(frame*0.9+v.ph*40)%40;
+        ctx.fillStyle='rgba(255,140,50,'+(0.7-em*0.017)+')';
+        ctx.fillRect(v.x-1+Math.sin(em*0.3)*2,gy-7-em,2,2);
       }else{ /* grass tuft */
         ctx.fillStyle='#3d6a2c';
         ctx.fillRect(v.x+sw*0.5,gy-6,1,6);ctx.fillRect(v.x+2+sw,gy-8,1,8);
