@@ -88,7 +88,7 @@ function fit(){const s=Math.min(innerWidth/W,Math.max(80,innerHeight-uiReserve)/
    and shrinks the play area so the bar can never cover the list */
 function syncTouchUI(){
   const m=(state==='shop'||state==='travel'||state==='skills'||state==='loadout'
-    ||state==='camp'||state==='menu'||state==='over'||state==='pause')?'menu':'play';
+    ||state==='camp'||state==='menu'||state==='over'||state==='pause'||state==='ending')?'menu':'play';
   if(m===uiMode)return;uiMode=m;
   document.body.classList.toggle('uimenu',m==='menu');
   const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
@@ -430,7 +430,7 @@ function gr(k){return (SV.gear&&SV.gear[k])||0;}
 function freshSave(){return{cash:0,level:1,day:1,miles:0,maxHp:100,hp:100,hpLvl:0,
   owned:{pistol:true},mod:{zmult:1},items:{frag:2,molotov:0,turret:0,strike:0},
   sp:0,skills:SKKEYS.reduce((o,k)=>(o[k]=0,o),{}),
-  pilgrimMet:0,pilgrimDead:0,
+  pilgrimMet:0,pilgrimDead:0,kills:0,ng:0,
   gear:{vest:0,helm:0,boots:0},ammo:{},
   sup:{food:2,meds:1,fuel:2,scrap:0},storyAt:0,
   up:WKEYS.reduce((o,k)=>(o[k]={d:0,r:0},o),{}),cur:'pistol'};}
@@ -457,6 +457,7 @@ function loadRun(){
     m.sup=Object.assign({},base.sup,o.sup||{});
     m.storyAt=o.storyAt||0;
     m.pilgrimMet=o.pilgrimMet||0;m.pilgrimDead=o.pilgrimDead||0;
+    m.kills=o.kills||0;m.ng=o.ng||0;
     m.sp=o.sp||0;
     m.up=Object.assign({},base.up);
     for(const k in base.up)m.up[k]=Object.assign({},base.up[k],(o.up||{})[k]||{});
@@ -791,6 +792,7 @@ let P,zombies,bullets,spits,cash,parts,decals,corpses,rings,lights,ladders,props
     throwns=[],fires=[],turrets=[],strikes=[],ammoDrops=[],levelT=0,itemMsgT=0,itemMsg='',
     holdT=0,holdStarted=false,holdWaveT=0,ally=null,cage=null,caches=[],prints=[],printD=0,rescueMsg='',
     cps=[],cpSave=null,pendingResume=false,surges=0,surgeNext=46,stashes=[],storyMsg='',
+    finalRun=false,endSel=0,endT=0,
     meteors=[],disT=0,disLeft=0,twister=null,pilgrimT=0,hooks=[],bolts=[],
     lvl,extract,killsLeft,routeMult=1,routeKind='mid',lastGain=0,skillSel=0,pauseSel=0,loadSel=0,campSel=0,waveLeft=0,waveAt=-1,wavePool=[],turbo=0,turboT=0,bloodT=0,lensBlood=[],
     msg='',msgT=0,flavorLine='',shopSel=0,travelSel=0,menuSel=0,overSel=0,
@@ -805,6 +807,18 @@ function zMid(z){return z.y-z.h*z.scale*0.55;}
 
 function startLevel(n){
   lvl=levelCfg(n);SV.mod.zmult=1;
+  if(finalRun){
+    const coast=BIOMES.find(b=>b.para==='coast');
+    lvl.biome=coast;lvl.ltype='field';lvl.floors=1;lvl.drive=false;
+    lvl.width=1900;lvl.tod='night';lvl.bloodMoon=false;
+    lvl.disaster=null;lvl.cellars=[];lvl.caches=[];lvl.cps=[(1900*0.5)|0];
+    lvl.obj='holdout';lvl.holdNeed=90;lvl.holdX=1900-130;lvl.cageX=0;
+    lvl.final=true;
+    const big=[];
+    for(let i=0;i<70;i++)big.push(i%9===0?'brute':(i%7===0?'runner':(i%5===0?'hound':'walker')));
+    big.push('giant','boss','abom');
+    lvl.mix=big;lvl.waves=4;
+    lvl.ext={x:lvl.holdX,f:0};lvl.start={x:26,f:0};}
   worldH=((lvl.cellars&&lvl.cellars.length)?lvl.floors+1:lvl.floors)*FLOOR_H+6;
   buildRelief();
   P={x:lvl.start.x,f:lvl.start.f,y:gnd(lvl.start.x,lvl.start.f),vx:0,vy:0,air:false,jumpT:0,
@@ -909,7 +923,9 @@ function startLevel(n){
   cine={mode:'intro',t:0,timer:16+Math.random()*8};
   state='play';sfx('whoosh');
   setDrone(38+(BIOMES.indexOf(lvl.biome)%7)*4.5);
-  if(lvl.obj==='holdout')toast('HOLD THE BEACON',3.6,
+  if(lvl.final)toast('THE LIGHTHOUSE',4,
+    'Reach the door. Hold it until the lamp finds you. This is the last road.');
+  else if(lvl.obj==='holdout')toast('HOLD THE BEACON',3.6,
     'Stand at the tower for '+lvl.holdNeed+'s \u2014 or put them all down.');
   else if(lvl.obj==='rescue')toast('SOMEONE IS ALIVE IN THERE',3.6,
     'A survivor is caged up. Getting them out is worth real money.');
@@ -939,8 +955,9 @@ function releaseWave(){
     g.length+' more between you and the extraction.');}
 function spawnZombie(t,x,f){
   const B=ZDEF[t];
-  zombies.push({t,spr:B.spr,x,f,y:gnd(x,f),hp:B.hp*lvl.hpMult,maxHp:B.hp*lvl.hpMult,
-    sp:B.sp*(0.9+Math.random()*0.25),dmg:B.dmg,cash:B.cash,h:B.h,
+  const ngM=1+0.30*(SV.ng||0),ngD=1+0.18*(SV.ng||0),ngC=1+0.15*(SV.ng||0);
+  zombies.push({t,spr:B.spr,x,f,y:gnd(x,f),hp:B.hp*lvl.hpMult*ngM,maxHp:B.hp*lvl.hpMult*ngM,
+    sp:B.sp*(0.9+Math.random()*0.25),dmg:Math.round(B.dmg*ngD),cash:Math.round(B.cash*ngC),h:B.h,
     vr:(Math.random()*3)|0,
     scale:B.sc*((t==='boss'||t==='abom')?1:0.93+Math.random()*0.14),
     dir:Math.random()<.5?-1:1,atkT:0,spitT:1+Math.random()*2,anim:Math.random()*10,
@@ -1215,6 +1232,76 @@ function pausePress(k){
   if(it.type==='continue'){state='play';sfx('buy');return;}
   if(it.type==='sound'){muted=!muted;if(muted)stopDrone();else sfx('buy');return;}
   stopDrone();saveRun();menuSel=0;state='menu';sfx('deny');}
+function endingItems(){return[
+  {type:'ng',label:'GO BACK OUT \u2014 NEW GAME+ '+((SV.ng||0)+1)},
+  {type:'title',label:'REST \u2014 BACK TO TITLE'}];}
+function endingPress(k){
+  const items=endingItems();
+  if(k==='arrowup'||k==='w'||k==='up'){endSel=(endSel-1+items.length)%items.length;sfx('climb');return;}
+  if(k==='arrowdown'||k==='s'||k==='down'){endSel=(endSel+1)%items.length;sfx('climb');return;}
+  if(k!=='act'&&k!=='enter'&&k!==' '&&k!=='tap')return;
+  const it=items[endSel];
+  if(it.type==='ng'){
+    const keep={cash:SV.cash,maxHp:SV.maxHp,hpLvl:SV.hpLvl,owned:SV.owned,mod:{zmult:1},
+      items:SV.items,sp:SV.sp,skills:SV.skills,gear:SV.gear,ammo:SV.ammo,up:SV.up,cur:SV.cur,
+      sup:SV.sup,kills:SV.kills,ng:(SV.ng||0)+1};
+    SV=Object.assign(freshSave(),keep);
+    SV.hp=SV.maxHp;
+    saveRun();sfx('lvl');menuSel=0;state='menu';savedRun=loadRun();return;}
+  clearRun();savedRun=null;menuSel=0;state='menu';sfx('buy');}
+function drawEnding(){
+  endT+=1/60;
+  /* night sea and the lamp */
+  const sg2=ctx.createLinearGradient(0,0,0,H);
+  sg2.addColorStop(0,'#060a16');sg2.addColorStop(0.62,'#101c2e');sg2.addColorStop(1,'#0a1420');
+  ctx.fillStyle=sg2;ctx.fillRect(0,0,W,H);
+  seed=99;ctx.fillStyle='rgba(230,238,255,0.8)';
+  for(let i=0;i<40;i++)ctx.fillRect(rnd()*W,rnd()*H*0.5,1,1);
+  for(let i=0;i<5;i++){
+    ctx.fillStyle='rgba(150,190,225,'+(0.05+i*0.02)+')';
+    const yy=H*0.62+i*9,off=(frame*(0.2+i*0.1))%30;
+    for(let x=-off;x<W;x+=30)ctx.fillRect(x,yy,15,1);}
+  const lx=W-70,lg=H*0.62;
+  ctx.fillStyle='#1a2030';ctx.fillRect(lx-8,lg-92,16,92);
+  ctx.fillStyle='#c8ccd8';ctx.fillRect(lx-8,lg-92,16,5);
+  ctx.fillStyle='#2a3040';ctx.fillRect(lx-11,lg-97,22,5);
+  const bm=(frame*0.02)%6.28;
+  if(Math.cos(bm)<-0.1){
+    ctx.fillStyle='rgba(255,240,180,'+(0.14*Math.abs(Math.cos(bm)))+')';
+    ctx.beginPath();ctx.moveTo(lx,lg-90);
+    ctx.lineTo(lx+Math.cos(bm)*260,lg-90-52);
+    ctx.lineTo(lx+Math.cos(bm)*260,lg-90+52);ctx.closePath();ctx.fill();}
+  ctx.fillStyle='rgba(255,240,180,0.9)';ctx.fillRect(lx-3,lg-91,6,3);
+  /* words */
+  const a=Math.min(1,endT/1.5);
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(255,215,106,'+a+')';ctx.font='bold 16px monospace';
+  ctx.fillText('THE ROAD ENDS',12,30);
+  ctx.font='9px monospace';
+  const paras=[
+    'They open the door before you knock. Warm bread. Salt wind.',
+    'Nobody asks what it cost. They can read it on you.',
+    'At night you climb the tower and watch the dark roads west,',
+    'for whoever is still out there, walking toward the light.'];
+  for(let i=0;i<paras.length;i++){
+    const pa3=clamp((endT-1.2-i*0.8)/0.8,0,1);
+    ctx.fillStyle='rgba(207,200,224,'+pa3+')';
+    ctx.fillText(paras[i],12,52+i*13);}
+  const sa=clamp((endT-4.6)/0.8,0,1);
+  ctx.fillStyle='rgba(143,160,179,'+sa+')';ctx.font='8px monospace';
+  ctx.fillText(SV.day+' days \u00b7 '+SV.miles+' miles \u00b7 '+(SV.kills||0)+' put to rest'
+    +((SV.ng||0)>0?' \u00b7 NG+'+SV.ng:''),12,116);
+  /* choices */
+  const items=endingItems(),top=150;
+  for(let i=0;i<items.length;i++){
+    const y=top+i*22,sel=i===endSel;
+    if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(6,y-12,W*0.62,18);
+      ctx.fillStyle='#ffd76a';ctx.fillRect(6,y-12,3,18);}
+    ctx.font=sel?'bold 10px monospace':'10px monospace';
+    ctx.fillStyle=i===0?'#7dffc8':'#aeb6c4';
+    ctx.fillText(items[i].label,16,y);}
+  ctx.textAlign='center';ctx.font='8px monospace';ctx.fillStyle='#5a6472';
+  ctx.fillText('New game+ keeps everything. The dead come back harder.',W/2,H-8);}
 function drawPauseMenu(){
   ctx.fillStyle='rgba(5,8,12,0.88)';ctx.fillRect(0,0,W,H);
   ctx.textAlign='center';
@@ -1269,6 +1356,9 @@ function routeOptions(){
                     :'The shortest way round. Safer, pays less.'});
   out.push({tier:mid,kind:'mid',mult:1.0, label:'THE MAIN ROAD',
     note:'Straight on to '+(isDrive(mid)?'a highway run':biomeFor(mid).name)+'.'});
+  if(SV.level>=30)
+    return[out[0],{tier:30,kind:'final',mult:1.5,label:'THE LIGHTHOUSE',
+      note:'The lamp is lit. The end of the road east.'}];
   out.push({tier:hi,kind:'high',mult:1.7,label:'THE DEEP ROUTE',fuel:2,
     note:SV.sup.fuel>=2?'Costs 2 fuel. Skips ahead three stops. Pays well if you live.'
                        :'The truck needs 2 fuel for this run. Scavenge some.'});
@@ -1321,6 +1411,7 @@ function travelPress(k){
       const r=routeOptions()[it.route];
       if(it.locked){sfx('deny');return;}
       if(r.fuel)SV.sup.fuel-=r.fuel;
+      finalRun=r.kind==='final';
       routeMult=r.mult;routeKind=r.kind;lastGain=0;
       SV.pending=r.tier;
       startLevel(r.tier);return;}
@@ -1458,6 +1549,11 @@ cv.addEventListener('pointerdown',ev=>{ac();
     const idx=start+i;
     if(idx===shopSel)shopPress('act');else{shopSel=idx;sfx('climb');}
     return;}
+  if(state==='ending'){
+    const items=endingItems(),i=rowAt(canvasPt(ev).y,150-12,22,items.length);
+    if(i<0)return;
+    if(i===endSel)endingPress('act');else{endSel=i;sfx('climb');}
+    return;}
   if(state==='camp'){
     const items=campItems(),
       i=rowAt(canvasPt(ev).y,CAMP_TOP-12,CAMP_STEP,items.length);
@@ -1509,6 +1605,7 @@ cv.addEventListener('pointerdown',ev=>{ac();
 function handlePress(k){
   if(state==='pause'){pausePress(k);return;}
   if(state==='play'&&(k==='escape'||k==='p')){state='pause';pauseSel=0;sfx('deny');return;}
+  if(state==='ending'){endingPress(k);return;}
   if(state==='camp'){campPress(k);return;}
   if(state==='loadout'){loadoutPress(k);return;}
   if(state==='skills'){skillPress(k);return;}
@@ -2236,7 +2333,10 @@ function update(dt){
           y:gnd(lvl.holdX,0)-30-Math.random()*8,vy:-16,life:.5,c:'rgba(255,90,90,0.8)',s:1});}
       holdWaveT-=dt;
       if(holdWaveT<=0&&wavePool.length){holdWaveT=11;releaseWave();}
-      if(holdT<=0){killsLeft=0;sfx('lvl');
+      if(holdT<=0){
+        if(lvl.final){
+          state='ending';endSel=0;endT=0;stopDrone();saveRun();return;}
+        killsLeft=0;sfx('lvl');
         toast('SIGNAL SENT',2.6,'They lose interest. The road is open.');}}}
   /* --- the pilgrim arrives --- */
   if(!frozen&&pilgrimT>0){
@@ -2377,7 +2477,7 @@ function deathSfx(z){
     default: return sfx('dead');}}
 function killZombie(z){
   if(z.dead)return;z.dead=true;
-  if(!z.noCount)killsLeft--;deathSfx(z);
+  if(!z.noCount)killsLeft--;SV.kills=(SV.kills||0)+1;deathSfx(z);
   if(z.t==='pilgrim'){
     SV.pilgrimDead=1;
     SV.cash+=600;SV.sup.fuel+=3;SV.sup.meds+=2;
@@ -2503,6 +2603,7 @@ function render(){
   if(state==='skills'){drawSkills();return;}
   if(state==='loadout'){drawLoadout();return;}
   if(state==='camp'){drawCamp();return;}
+  if(state==='ending'){drawEnding();return;}
   if(state==='travel'){drawTravel();return;}
   const sx=(Math.random()-0.5)*shake+punchX,sy=(Math.random()-0.5)*shake+punchY;
   ctx.save();
@@ -3293,8 +3394,25 @@ function drawWorld(){
     ctx.fillStyle='#1a1a1e';ctx.fillRect(1,-9,5,2);
     if(ally.muzzleT>0){ctx.fillStyle='#fff2a0';ctx.fillRect(6,-10,3,3);}
     ctx.restore();}
+  /* the lighthouse itself on the last road */
+  if(lvl.final){
+    const hx3=lvl.holdX,gy13=gnd(hx3,0);
+    ctx.fillStyle='#1a2030';ctx.fillRect(hx3-12,gy13-110,24,110);
+    ctx.fillStyle='#26304a';ctx.fillRect(hx3-12,gy13-110,5,110);
+    ctx.fillStyle='#c8ccd8';ctx.fillRect(hx3-12,gy13-110,24,6);
+    ctx.fillStyle='#2a3040';ctx.fillRect(hx3-15,gy13-116,30,6);
+    for(let sy=gy13-96;sy<gy13-14;sy+=22){
+      ctx.fillStyle='#0e1420';ctx.fillRect(hx3-5,sy,10,7);}
+    ctx.fillStyle='#3d3244';ctx.fillRect(hx3-7,gy13-16,14,16);
+    const bm2=(frame*0.025)%6.28,bx4=Math.cos(bm2);
+    ctx.fillStyle='rgba(255,240,180,'+(0.10+0.08*Math.abs(bx4))+')';
+    ctx.beginPath();ctx.moveTo(hx3,gy13-108);
+    ctx.lineTo(hx3+bx4*220,gy13-108-46);
+    ctx.lineTo(hx3+bx4*220,gy13-108+46);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#fff2c0';ctx.fillRect(hx3-4,gy13-109,8,4);
+    lights.push({x:hx3,y:gy13-106,r:60,t:.03});}
   /* the beacon */
-  if(lvl.obj==='holdout'){
+  if(lvl.obj==='holdout'&&!lvl.final){
     const hx=lvl.holdX,gy3=gnd(hx,0),
       active=holdStarted&&killsLeft>0&&!extract.open;
     ctx.fillStyle='rgba(255,90,90,'+(active?0.10:0.05)+')';
