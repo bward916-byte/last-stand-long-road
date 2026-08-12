@@ -1692,6 +1692,22 @@ cv.addEventListener('pointerdown',ev=>{ac();
   if(state==='travel'){
     const items=travelItems(),
       i=rowAt(canvasPt(ev).y,travelRowTop-10,travelRowStep,items.length);
+    if(!(event&&!eventDone)){
+      const pt3=canvasPt(ev);
+      for(const nz of travelMapNodes){
+        if(Math.hypot(pt3.x-nz.x,pt3.y-nz.y)<=nz.r){
+          tapRow('travel',nz.row,travelSel,v=>{travelSel=v;},travelPress);
+          return;}}
+      for(const bz of travelBtnZones){
+        if(pt3.x>=bz.x&&pt3.x<bz.x+bz.w&&pt3.y>=bz.y&&pt3.y<bz.y+bz.h){
+          tapRow('travel',bz.row,travelSel,v=>{travelSel=v;},travelPress);
+          return;}}
+      const cz=travelCardZone;
+      if(cz&&pt3.x>=cz.x&&pt3.x<cz.x+cz.w&&pt3.y>=cz.y&&pt3.y<cz.y+cz.h
+         &&items[travelSel]&&items[travelSel].type==='go'){
+        tapRow('travel',travelSel,travelSel,v=>{travelSel=v;},travelPress);
+        return;}
+      return;}
     if(i<0||items[i].type==='hdr')return;
     tapRow('travel',i,travelSel,v=>{travelSel=v;},travelPress);
     return;}
@@ -4419,6 +4435,59 @@ function drawOverMenu(){
       items[i].type==='retry'?'#7dffc8':'#ff8a7a');
   ctx.textAlign='center';ctx.font='9px monospace';ctx.fillStyle='#5a6472';
   ctx.fillText('tap an option \u00b7 or up/down then SELECT',W/2,H-7);}
+let travelMapNodes=[],travelBtnZones=[],travelCardZone=null;
+function mapGlyph(para,drive,x,y){
+  ctx.save();ctx.translate(x,y);
+  if(drive){ctx.fillStyle='#9aa4b4';ctx.fillRect(-5,-1,10,2);
+    ctx.fillStyle='#ffd76a';ctx.fillRect(-4,-0.5,2,1);ctx.fillRect(0,-0.5,2,1);ctx.fillRect(3,-0.5,2,1);}
+  else switch(para){
+    case 'mountain': case 'crag':
+      ctx.fillStyle='#8b93a3';
+      ctx.beginPath();ctx.moveTo(-6,4);ctx.lineTo(-2,-4);ctx.lineTo(1,4);ctx.fill();
+      ctx.beginPath();ctx.moveTo(0,4);ctx.lineTo(3,-2);ctx.lineTo(6,4);ctx.fill();
+      ctx.fillStyle='#e8eef5';ctx.beginPath();ctx.moveTo(-3.4,-1);ctx.lineTo(-2,-4);ctx.lineTo(-0.7,-1);ctx.fill();break;
+    case 'canyon': case 'mesa':
+      ctx.fillStyle='#b06838';ctx.fillRect(-5,-3,4,7);ctx.fillRect(1,-1,4,5);
+      ctx.fillStyle='#7a4520';ctx.fillRect(-5,-3,4,1.5);ctx.fillRect(1,-1,4,1.5);break;
+    case 'desert':
+      ctx.fillStyle='#4a7a46';ctx.fillRect(-0.8,-4,1.8,8);
+      ctx.fillRect(-3.6,-1.6,1.6,3);ctx.fillRect(-3.6,-1.6,3,1.4);
+      ctx.fillRect(2,-2.6,1.6,3.4);ctx.fillRect(0.4,-2.6,3.2,1.4);break;
+    case 'dunes':
+      ctx.strokeStyle='#d0b070';ctx.lineWidth=1.4;
+      ctx.beginPath();ctx.moveTo(-6,2);ctx.quadraticCurveTo(-2,-3,2,2);
+      ctx.quadraticCurveTo(4,4,6,1);ctx.stroke();break;
+    case 'floe':
+      ctx.fillStyle='#cfe4f2';
+      ctx.beginPath();ctx.moveTo(-5,3);ctx.lineTo(-3,-4);ctx.lineTo(0,3);ctx.fill();
+      ctx.beginPath();ctx.moveTo(0,3);ctx.lineTo(3,-1.6);ctx.lineTo(5,3);ctx.fill();
+      ctx.fillStyle='#2a4258';ctx.fillRect(-6,3,12,1.6);break;
+    case 'volcano':
+      ctx.fillStyle='#5a3028';
+      ctx.beginPath();ctx.moveTo(-6,4);ctx.lineTo(-1.4,-3.6);ctx.lineTo(3.6,4);ctx.fill();
+      ctx.fillStyle='#ff7a2a';ctx.fillRect(-2.4,-4,2,1.8);
+      ctx.fillRect(-3.4,-2.6,1.4,2.6);ctx.fillRect(-0.6,-2.4,1.2,2);break;
+    case 'coast':
+      ctx.strokeStyle='#6ab8d8';ctx.lineWidth=1.4;
+      ctx.beginPath();ctx.moveTo(-6,0);ctx.quadraticCurveTo(-3,-2.6,0,0);
+      ctx.quadraticCurveTo(3,2.6,6,0);ctx.stroke();break;
+    case 'marsh':
+      ctx.strokeStyle='#5a8a5a';ctx.lineWidth=1.2;
+      for(let q=-4;q<=4;q+=4){ctx.beginPath();ctx.moveTo(q,3);ctx.lineTo(q,-2);
+        ctx.lineTo(q-1.6,-3.4);ctx.stroke();}break;
+    case 'corn': case 'meadow': case 'orchard': case 'forest': case 'pines':
+      ctx.fillStyle='#3f6a3c';
+      ctx.beginPath();ctx.moveTo(-4.6,3);ctx.lineTo(-2.4,-3.4);ctx.lineTo(-0.4,3);ctx.fill();
+      ctx.beginPath();ctx.moveTo(0.4,3);ctx.lineTo(2.6,-1.6);ctx.lineTo(4.6,3);ctx.fill();
+      ctx.fillStyle='#5a4328';ctx.fillRect(-2.9,3,1,1.6);break;
+    case 'wastes':
+      ctx.fillStyle='#c8c8b8';ctx.fillRect(-2.4,-3.4,5,4.4);
+      ctx.fillStyle='#1a1a14';ctx.fillRect(-1.2,-2,1.2,1.2);ctx.fillRect(0.8,-2,1.2,1.2);
+      ctx.fillStyle='#c8c8b8';ctx.fillRect(-1.6,1.6,3.6,1);break;
+    default:
+      ctx.fillStyle='#6f7a8a';ctx.fillRect(-4.6,-2.4,4,6.6);ctx.fillRect(0.6,-4,4,8);
+      ctx.fillStyle='#ffd76a';ctx.fillRect(1.6,-2.6,1,1);ctx.fillRect(3.2,-0.6,1,1);}
+  ctx.restore();}
 function drawTravel(){
   ctx.fillStyle='#101318';ctx.fillRect(0,0,W,H);
   /* header */
@@ -4426,19 +4495,17 @@ function drawTravel(){
   ctx.textAlign='left';ctx.font='bold 12px monospace';
   ctx.fillStyle='#ffd76a';ctx.fillText('THE ROAD \u2014 DAY '+SV.day,8,13);
   ctx.font='8px monospace';ctx.fillStyle='#8fa0b3';
-  ctx.fillText(SV.miles+' mi \u00b7 tier '+SV.level+' \u00b7 power '+playerPower()
+  ctx.fillText(SV.miles+' mi \u00b7 power '+playerPower()
     +(lastGain?'   +'+lastGain+' SP':''),8,22);
   ctx.textAlign='right';ctx.font='bold 12px monospace';
   ctx.fillStyle='#9fff9f';ctx.fillText('$'+SV.cash,W-8,13);
   ctx.font='8px monospace';
   ctx.fillStyle=SV.hp<SV.maxHp*0.3?'#ff8a7a':'#bfe8c8';
   ctx.fillText('HP '+Math.ceil(SV.hp)+'/'+SV.maxHp,W-8,22);
-  /* supplies */
-  {const sx0=W*0.40;ctx.textAlign='left';ctx.font='bold 8px monospace';
-   const items2=[['#e8b45a','food',SV.sup.food],['#ff8a8a','meds',SV.sup.meds],
-     ['#8ac8ff','fuel',SV.sup.fuel]];
+  {const sx0=W*0.42;ctx.textAlign='left';ctx.font='bold 8px monospace';
+   const items2=[['food',SV.sup.food],['meds',SV.sup.meds],['fuel',SV.sup.fuel]];
    let xx=sx0;
-   for(const [col,k2,v2] of items2){
+   for(const [k2,v2] of items2){
      if(k2==='food'){ctx.fillStyle='#8a7a4a';ctx.fillRect(xx,6,6,8);
        ctx.fillStyle='#c8b45a';ctx.fillRect(xx,6,6,2);}
      else if(k2==='meds'){ctx.fillStyle='#e8eef5';ctx.fillRect(xx,6,7,8);
@@ -4448,105 +4515,179 @@ function drawTravel(){
      ctx.fillStyle=v2>0?'#dfe6ee':'#ff8a7a';
      ctx.fillText(v2,xx+9,13.5);
      xx+=26;}}
-
-  /* ---- the map ---- */
   const items=travelItems(),rs=routeOptions();
   const evLiveNow=event&&!eventDone;
-  const evLive=evLiveNow||!!eventResult||!!storyMsg;
-  /* a live event brings its own choice rows, so the map stands aside */
-  const my=28,mh=evLiveNow?0:(evLive?46:64),forkX=W*0.46,endX=W-30;
   const selRoute=items[travelSel]&&items[travelSel].type==='go'?items[travelSel].route:-1;
-  if(mh>0){
-  ctx.fillStyle='#141821';ctx.fillRect(0,my,W,mh);
-  ctx.fillStyle='#20262f';ctx.fillRect(0,my,W,1);ctx.fillRect(0,my+mh-1,W,1);
-  const spine=my+mh/2;
-  /* road already walked */
-  const trail=(SV.trail||[]).slice(-6);
-  ctx.strokeStyle='#37e0c8';ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.moveTo(10,spine);ctx.lineTo(forkX,spine);ctx.stroke();
+  travelMapNodes=[];travelBtnZones=[];travelCardZone=null;
+  /* ================= EVENT MODE: the road demands an answer ================= */
+  if(evLiveNow){
+    let cy=30,ch=30;
+    ctx.fillStyle='#171b24';ctx.fillRect(10,cy,W-20,ch);
+    ctx.strokeStyle='#2a3040';ctx.lineWidth=1;ctx.strokeRect(10.5,cy+.5,W-21,ch-1);
+    ctx.textAlign='left';ctx.font='bold 8px monospace';ctx.fillStyle='#ffd76a';
+    ctx.fillText('\u25c6 ON THE ROAD',16,cy+11);
+    ctx.font='8px monospace';ctx.fillStyle='#dfe6ee';
+    const lines=wrapLines(event.text,62);
+    for(let k=0;k<Math.min(lines.length,2);k++)ctx.fillText(lines[k],16,cy+21+k*9);
+    const top=cy+ch+14,
+      step=Math.max(11,Math.min(TRAVEL_STEP,
+        Math.floor((H-10-top)/Math.max(1,items.length-1))||TRAVEL_STEP));
+    travelRowTop=top;travelRowStep=step;
+    for(let i=0;i<items.length;i++){
+      const it=items[i],y=top+i*step,sel=i===travelSel;
+      if(it.type==='hdr'){
+        ctx.textAlign='left';ctx.font='bold 7px monospace';
+        ctx.fillStyle='#5a6472';ctx.fillText(it.label,10,y);
+        continue;}
+      if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(8,y-10,W-16,step-1);
+        ctx.fillStyle='#ffd76a';ctx.fillRect(8,y-10,3,step-1);}
+      rowDecor('travel',i,8,y-10,W-16,step-1,it.type!=='go');
+      ctx.textAlign='left';
+      ctx.font=(sel?'bold ':'')+(step>=15?10:9)+'px monospace';
+      ctx.fillStyle=it.rd?it.rd.col:(sel?'#fff':'#aeb6c4');
+      ctx.fillText(it.label,16,y);}
+    return;}
+  /* ================= MAP MODE ================= */
+  travelRowTop=H+60;travelRowStep=20;
+  const my=28,mhh=(eventResult||storyMsg)?86:100,mb=my+mhh;
+  ctx.fillStyle='#12161f';ctx.fillRect(0,my,W,mhh);
+  ctx.fillStyle='#20262f';ctx.fillRect(0,my,W,1);ctx.fillRect(0,mb-1,W,1);
+  /* faint contour scribbles so it reads as country */
+  seed=SV.level*17+3;
+  ctx.strokeStyle='rgba(70,80,96,0.20)';ctx.lineWidth=1;
+  for(let q=0;q<7;q++){
+    const yy=my+8+rnd()*(mhh-16),x0=rnd()*W*0.7,ln=30+rnd()*70;
+    ctx.beginPath();ctx.moveTo(x0,yy);
+    ctx.quadraticCurveTo(x0+ln/2,yy+(rnd()-0.5)*10,x0+ln,yy+(rnd()-0.5)*6);ctx.stroke();}
+  const spine=my+mhh*0.52,curX=64;
+  /* miles already walked */
+  const trail=(SV.trail||[]).slice(-7);
+  ctx.strokeStyle='rgba(55,224,200,0.55)';ctx.lineWidth=1.5;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(10,spine);ctx.lineTo(curX,spine);ctx.stroke();
+  ctx.setLineDash([]);
   for(let i=0;i<trail.length;i++){
-    const x=14+(forkX-24)*(i+0.5)/trail.length;
+    const x=12+(curX-22)*(i+0.5)/trail.length;
     ctx.fillStyle=trail[i].k==='high'?'#ff8a5a':(trail[i].k==='low'?'#8fa0b3':'#37e0c8');
-    ctx.beginPath();ctx.arc(x,spine,2,0,7);ctx.fill();}
-  /* you are here */
+    ctx.beginPath();ctx.arc(x,spine,1.8,0,7);ctx.fill();}
+  /* you */
   const pr=3+Math.sin(frame*0.16);
-  ctx.fillStyle='#ffd76a';ctx.beginPath();ctx.arc(forkX,spine,pr,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,215,106,0.25)';
+  ctx.beginPath();ctx.arc(curX,spine,pr+4,0,7);ctx.fill();
+  ctx.fillStyle='#ffd76a';ctx.beginPath();ctx.arc(curX,spine,pr,0,7);ctx.fill();
   ctx.textAlign='center';ctx.font='7px monospace';ctx.fillStyle='#8a939f';
-  ctx.fillText('YOU',forkX,spine+14);
-  /* three roads out */
-
+  ctx.fillText('YOU',curX,spine+15);
+  /* the lighthouse at the end of everything */
+  {const lx=W-18,lyy=my+22,left=Math.max(0,30-SV.level);
+   ctx.fillStyle='#2a3040';ctx.fillRect(lx-3,lyy-10,6,14);
+   ctx.fillStyle='#c8ccd8';ctx.fillRect(lx-3,lyy-10,6,2.4);
+   ctx.fillStyle='#fff2c0';ctx.fillRect(lx-1.6,lyy-9.4,3.2,1.6);
+   if(SV.level>=24){const bm3=(frame*0.03)%6.28;
+     ctx.fillStyle='rgba(255,240,180,'+(0.10+0.06*Math.abs(Math.cos(bm3)))+')';
+     ctx.beginPath();ctx.moveTo(lx,lyy-9);
+     ctx.lineTo(lx+Math.cos(bm3)*44,lyy-9-13);
+     ctx.lineTo(lx+Math.cos(bm3)*44,lyy-9+13);ctx.closePath();ctx.fill();}
+   ctx.font='6px monospace';ctx.fillStyle='#8a939f';
+   ctx.fillText(left>0?left+' TO GO':'HERE',lx,lyy+12);}
+  /* the roads out: tap a place on the map to pick it */
+  const goRows=[];
+  for(let i=0;i<items.length;i++)if(items[i].type==='go')goRows.push(i);
+  const nX=rs.length===2?[168,262]:[150,222,294],
+    kindY={low:spine+26,mid:spine,high:spine-28,final:spine-6};
   for(let i=0;i<rs.length;i++){
-    const r=rs[i],rd=readiness(r.tier),ny=my+16+i*((mh-30)/2),sel=i===selRoute;
-    ctx.strokeStyle=sel?rd.col:'rgba(90,100,116,0.45)';
-    ctx.lineWidth=sel?2:1;
-    ctx.beginPath();ctx.moveTo(forkX,spine);
-    ctx.bezierCurveTo(forkX+30,spine,endX-40,ny,endX-10,ny);ctx.stroke();
-    ctx.fillStyle=sel?rd.col:'#39414e';
-    ctx.beginPath();ctx.arc(endX-8,ny,sel?4:2.5,0,7);ctx.fill();
-    ctx.textAlign='right';ctx.font=sel?'bold 8px monospace':'8px monospace';
-    ctx.fillStyle=sel?rd.col:'#6f7a8a';
-    ctx.fillText('T'+r.tier+(r.mult!==1?'  x'+r.mult:''),endX-14,ny+3);}
-  if(selRoute>=0){
-    const r=rs[selRoute];
-    ctx.textAlign='left';ctx.font='8px monospace';ctx.fillStyle='#8fa0b3';
-    const nm=isDrive(r.tier)?'HIGHWAY RUN':biomeFor(r.tier).name;
-    const rd=readiness(r.tier);
-    ctx.fillText(nm,10,my+mh-7);
-    ctx.fillStyle=rd.col;
-    ctx.fillText('power '+playerPower()+' vs '+tierPower(r.tier)+' expected',10,my+mh-17);}
-
-  }
-  /* ---- event card (only when there's something to read) ---- */
-  const live=event&&!eventDone;
-  let cy=my+mh+3,ch=0;
-  if(live||eventResult||storyMsg){
-    const isStory=!!storyMsg&&!live;
-    ch=(live||isStory)?28:20;
-    ctx.fillStyle=isStory?'#1a1722':'#171b24';ctx.fillRect(10,cy,W-20,ch);
-    ctx.strokeStyle=isStory?'#3a3050':'#2a3040';ctx.lineWidth=1;
-    ctx.strokeRect(10.5,cy+.5,W-21,ch-1);
-    ctx.textAlign='left';
-    const body=live?event.text:(isStory?storyMsg:eventResult);
-    if(live){ctx.font='bold 8px monospace';ctx.fillStyle='#ffd76a';
-      ctx.fillText('\u25c6 ON THE ROAD',16,cy+11);}
-    else if(isStory){ctx.font='bold 8px monospace';ctx.fillStyle='#b8a8e8';
-      ctx.fillText('\u25aa THE BROADCAST',16,cy+11);}
-    ctx.font='8px monospace';
-    ctx.fillStyle=live?'#dfe6ee':(isStory?'#cfc8e0':'#8fa0b3');
-    const lines=wrapLines(body,62),ty=(live||isStory)?cy+22:cy+13;
-    for(let k=0;k<Math.min(lines.length,isStory?2:1);k++)ctx.fillText(lines[k],16,ty+k*9);
-  }else if(selRoute>=0){
-    ctx.textAlign='center';ctx.font='8px monospace';ctx.fillStyle='#8fa0b3';
-    ctx.fillText(rs[selRoute].note,W/2,cy+9);ch=12;}
-
-  /* ---- choices ---- */
-  const top=cy+ch+13,
-    step=Math.max(11,Math.min(TRAVEL_STEP,
-      Math.floor((H-10-top)/Math.max(1,items.length-1))||TRAVEL_STEP));
-  travelRowTop=top;travelRowStep=step;
-  for(let i=0;i<items.length;i++){
-    const it=items[i],y=top+i*step,sel=i===travelSel;
-    if(it.type==='hdr'){
-      ctx.textAlign='left';ctx.font='bold 7px monospace';
-      ctx.fillStyle='#5a6472';ctx.fillText(it.label,10,y);
-      ctx.fillStyle='rgba(90,100,116,0.35)';
-      ctx.fillRect(10+ctx.measureText(it.label).width+6,y-3,W-24-ctx.measureText(it.label).width,1);
-      continue;}
-    if(sel){ctx.fillStyle='rgba(255,215,106,0.14)';ctx.fillRect(8,y-10,W-16,step-1);
-      ctx.fillStyle='#ffd76a';ctx.fillRect(8,y-10,3,step-1);}
-    rowDecor('travel',i,8,y-10,W-16,step-1,it.type!=='go');
-    ctx.save();ctx.translate(14,y-10);
-    if(it.type==='loadout'){ctx.scale(0.8,0.8);uiIcon('new',0,0);}
-    else uiIcon(it.type==='skill'?'skill':(it.type==='camp'?'camp':it.type),0,0);
+    const r=rs[i],row=goRows[i],it=items[row],
+      nx=nX[i],ny=clamp(kindY[r.kind]!==undefined?kindY[r.kind]:spine,my+18,mb-22),
+      sel=selRoute===i,rd=readiness(r.tier),
+      locked=!!it.locked;
+    /* the way there */
+    ctx.strokeStyle=sel?rd.col:'rgba(90,100,116,0.4)';
+    ctx.lineWidth=sel?1.8:1;
+    ctx.setLineDash(sel?[]:[2,3]);
+    ctx.beginPath();ctx.moveTo(curX+5,spine);
+    ctx.bezierCurveTo(curX+34,spine,nx-38,ny,nx-14,ny);ctx.stroke();
+    ctx.setLineDash([]);
+    /* the place itself */
+    travelMapNodes.push({x:nx,y:ny,r:16,row});
+    ctx.fillStyle=sel?'rgba(40,36,18,0.95)':'rgba(20,24,34,0.92)';
+    ctx.beginPath();ctx.arc(nx,ny,12,0,7);ctx.fill();
+    ctx.strokeStyle=locked?'#5a6472':(sel?'#ffd76a':rd.col);
+    ctx.lineWidth=sel?2:1.2;
+    ctx.beginPath();ctx.arc(nx,ny,12,0,7);ctx.stroke();
+    if(isArmed('travel',row)){
+      const pu=0.5+0.5*Math.sin(frame*0.3);
+      ctx.strokeStyle='rgba(125,255,200,'+(0.4+0.45*pu)+')';
+      ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.arc(nx,ny,15,0,7);ctx.stroke();}
+    ctx.save();if(locked)ctx.globalAlpha=0.45;
+    mapGlyph(isDrive(r.tier)?'':biomeFor(r.tier).para,isDrive(r.tier),nx,ny-1);
     ctx.restore();
-    ctx.textAlign='left';
-    const fs2=step>=15?10:9;
-    ctx.font=(sel?'bold ':'')+fs2+'px monospace';
-    ctx.fillStyle=it.rd?it.rd.col:(it.type==='shop'?'#ffd76a'
-      :(it.type==='loadout'?'#a8c8e8'
-      :(it.type==='camp'?'#c8c8d8'
-      :(it.type==='skill'?((SV.sp||0)>0?'#7dffc8':'#aeb6c4'):(sel?'#fff':'#aeb6c4')))));
-    ctx.fillText(it.label,34,y);}
+    if(locked){ctx.font='bold 8px monospace';ctx.textAlign='center';
+      ctx.fillStyle='#8a939f';ctx.fillText('\u26fd',nx+8,ny-8);}
+    ctx.textAlign='center';ctx.font=(sel?'bold ':'')+'7px monospace';
+    ctx.fillStyle=sel?'#fff':'#8fa0b3';
+    ctx.fillText('T'+r.tier+(r.mult!==1?' x'+r.mult:''),nx,ny+21);}
+  /* story / overnight strip */
+  if(eventResult||storyMsg){
+    const isStory=!!storyMsg,cy2=mb+2,ch2=24;
+    ctx.fillStyle=isStory?'#1a1722':'#171b24';ctx.fillRect(8,cy2,W-16,ch2);
+    ctx.strokeStyle=isStory?'#3a3050':'#2a3040';ctx.lineWidth=1;
+    ctx.strokeRect(8.5,cy2+.5,W-17,ch2-1);
+    ctx.textAlign='left';ctx.font='bold 7px monospace';
+    ctx.fillStyle=isStory?'#b8a8e8':'#8fa0b3';
+    ctx.fillText(isStory?'\u25aa THE BROADCAST':'\u25c6 OVERNIGHT',14,cy2+9);
+    ctx.font='8px monospace';
+    ctx.fillStyle=isStory?'#cfc8e0':'#9aa8b8';
+    const lines=wrapLines(isStory?storyMsg:eventResult,64);
+    for(let k=0;k<Math.min(lines.length,2);k++)
+      ctx.fillText(lines[k],14,cy2+(lines.length>1?15:17)+k*8);}
+  /* ---- bottom: prep buttons + the chosen road ---- */
+  const by=(eventResult||storyMsg)?mb+30:mb+6,bh=H-by-12;
+  const btnDefs=[['shop','ARMORY'],['skill','SKILLS'],['loadout','GEAR'],['camp','CAMP']];
+  for(let i=0;i<4;i++){
+    const [ty2,lb]=btnDefs[i],
+      row=items.findIndex(it=>it.type===ty2),
+      bx=8+i*44,sel=travelSel===row;
+    travelBtnZones.push({x:bx,y:by,w:40,h:bh,row});
+    ctx.fillStyle=sel?'rgba(255,215,106,0.14)':'rgba(20,24,34,0.9)';
+    ctx.fillRect(bx,by,40,bh-10);
+    ctx.strokeStyle=sel?'#ffd76a':'rgba(70,80,96,0.5)';ctx.lineWidth=1;
+    ctx.strokeRect(bx+.5,by+.5,39,bh-11);
+    ctx.save();ctx.translate(bx+12,by+(bh-10)/2-8);uiIcon(ty2==='loadout'?'new':ty2,0,0);ctx.restore();
+    ctx.textAlign='center';ctx.font='6px monospace';
+    ctx.fillStyle=sel?'#ffd76a':'#8a939f';
+    ctx.fillText(lb,bx+20,by+bh-14);
+    /* badges */
+    if(ty2==='skill'&&(SV.sp||0)>0){ctx.fillStyle='#7dffc8';ctx.font='bold 7px monospace';
+      ctx.textAlign='right';ctx.fillText(SV.sp,bx+37,by+9);}
+    if(ty2==='camp'&&SV.sup.scrap>0){ctx.fillStyle='#c8c8d8';ctx.font='bold 7px monospace';
+      ctx.textAlign='right';ctx.fillText(SV.sup.scrap,bx+37,by+9);}}
+  /* the chosen road card */
+  {const cx0=186,cw=W-cx0-8;
+   travelCardZone={x:cx0,y:by,w:cw,h:bh-10};
+   ctx.fillStyle='rgba(20,24,34,0.9)';ctx.fillRect(cx0,by,cw,bh-10);
+   ctx.strokeStyle='rgba(70,80,96,0.5)';ctx.strokeRect(cx0+.5,by+.5,cw-1,bh-11);
+   if(selRoute>=0){
+     const r=rs[selRoute],rd=readiness(r.tier),row=goRows[selRoute],
+       locked=!!items[row].locked,
+       nm=isDrive(r.tier)?'HIGHWAY RUN':biomeFor(r.tier).name;
+     rowDecor('travel',row,cx0,by,cw,bh-10,false);
+     ctx.textAlign='left';ctx.font='bold 9px monospace';
+     ctx.fillStyle='#fff';ctx.fillText(nm.slice(0,20),cx0+7,by+11);
+     ctx.font='7px monospace';ctx.fillStyle=rd.col;
+     ctx.fillText(rd.label+' \u00b7 power '+playerPower()+' vs '+tierPower(r.tier)
+       +(r.fuel?' \u00b7 \u26fd'+r.fuel:''),cx0+7,by+21);
+     ctx.fillStyle=locked?'#ff8a7a':'#8fa0b3';
+     const note=locked?'The truck needs '+r.fuel+' fuel. Scavenge or craft some.':r.note;
+     const nl=wrapLines(note,26);
+     for(let k=0;k<Math.min(nl.length,2);k++)ctx.fillText(nl[k],cx0+7,by+31+k*8);
+     ctx.textAlign='center';ctx.font='bold 8px monospace';
+     ctx.fillStyle=isArmed('travel',row)?'#7dffc8':(locked?'#5a6472':'#ffd76a');
+     ctx.fillText(isArmed('travel',row)?'\u25b6 TAP AGAIN TO ROLL OUT'
+       :(locked?'OUT OF FUEL':'TAP AGAIN TO ROLL OUT'),cx0+cw/2,by+bh-16);}
+   else{ctx.textAlign='center';ctx.font='8px monospace';ctx.fillStyle='#5a6472';
+     ctx.fillText('TAP A PLACE ON THE MAP',cx0+cw/2,by+(bh-10)/2+3);}}
+  ctx.textAlign='center';ctx.font='7px monospace';ctx.fillStyle='#5a6472';
+  ctx.fillText('tap a place \u00b7 tap it again to travel',W/2,H-4);
 }
 /* ---- pixel icons for the armory rows (drawn, not loaded — keeps it 1 file) ---- */
 const SHOP_TOP=46,SHOP_STEP=21,SHOP_VISIBLE=6,ICON_W=16,ICON_H=13;
