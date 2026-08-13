@@ -1245,12 +1245,18 @@ function drawLoadout(){
       ctx.fillText(maxed?'MAX':'$'+cost,W-8,y);
     }else{ctx.fillStyle='#7dffc8';ctx.fillText(it.label,x0+24,y);}}
   const cur=items[loadSel];
-  ctx.textAlign='center';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
-  ctx.fillText(cur.type==='gear'?GEAR[cur.k].desc
-    :(cur.type==='wpn'?'Buy new weapons and upgrades in the armory.'
-    :'Gear is worn on the road and shown on your survivor.'),W/2,H-20);
-  ctx.fillStyle='#5a6472';
-  ctx.fillText('tap to change gear \u00b7 spending always asks twice',W/2,H-7);}
+  ctx.textAlign='left';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
+  const gd=cur.type==='gear'?GEAR[cur.k].desc
+    :(cur.type==='wpn'?'Tap a weapon to carry it out.'
+    :'Gear is worn on the road and shown on your survivor.');
+  const gdl=wrapLines(gd,32);
+  for(let k=0;k<Math.min(gdl.length,2);k++)ctx.fillText(gdl[k],8,H-21+k*10);
+  if(cur.type==='gear'){
+    const r3=SV.gear[cur.k],max3=GEAR[cur.k].max,
+      maxed3=r3>=max3,cost3=maxed3?0:GEAR[cur.k].cost[r3];
+    drawBtn('loadout',W-106,H-25,98,19,
+      maxed3?'MAXED OUT':'UPGRADE \u00b7 $'+cost3,
+      !maxed3&&SV.cash>=cost3);}}
 function gearIcon(k,ox,oy){
   if(k==='vest'){
     ip(ox+4,oy+2,8,2,'#5a6a7a');ip(ox+3,oy+4,10,7,'#5a6a7a');
@@ -1278,7 +1284,9 @@ function skillPress(k){
   SV.sp-=cost;SV.skills[it.k]=rank+1;sfx('lvl');saveRun();}
 /* touch model: navigation rows act on a single tap; anything that spends
    cash, points, scrap or fuel arms itself and asks for one more tap. */
-let armed=null,armedT=0;
+/* touch model v2: tapping selects and shows detail; anything that spends
+   money, points or scrap runs through ONE big labelled button. Navigation
+   still acts on a single tap. Nothing hidden, nothing double. */
 function costsSomething(screen,it){
   if(!it)return false;
   if(screen==='shop')return it.type!=='go';
@@ -1286,23 +1294,36 @@ function costsSomething(screen,it){
   if(screen==='camp')return it.type==='craft';
   if(screen==='loadout')return it.type==='gear';
   if(screen==='travel')return it.type==='go';
-  if(screen==='over')return it.type==='retry'&&retryCost()>0;
   return false;}
+let uiBtn=null;
+function drawBtn(screen,x,y,w,h,label,en){
+  uiBtn={screen,x,y,w,h,en:en!==false};
+  const pu=0.5+0.5*Math.sin(frame*0.12);
+  ctx.fillStyle=en?'rgba(255,215,106,'+(0.16+0.06*pu)+')':'rgba(60,66,80,0.25)';
+  ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle=en?'#ffd76a':'rgba(90,100,116,0.5)';
+  ctx.lineWidth=en?1.5:1;
+  ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+  ctx.textAlign='center';ctx.font='bold 9px monospace';
+  ctx.fillStyle=en?'#ffe9a8':'#6a7382';
+  ctx.fillText(label,x+w/2,y+h/2+3.5);}
+function pressFor(screen){
+  return screen==='shop'?shopPress:screen==='skills'?skillPress
+    :screen==='camp'?campPress:screen==='loadout'?loadoutPress
+    :screen==='travel'?travelPress:screen==='over'?overPress
+    :screen==='ending'?endingPress:null;}
 function tapRow(screen,i,cur,setSel,press){
   if(i!==cur){setSel(i);sfx('climb');
-    if(costsSomething(screen,rowOf(screen,i))){armed=screen+':'+i;armedT=2.2;}
-    else{armed=null;press('act');}
+    if(!costsSomething(screen,rowOf(screen,i)))press('act');
     return;}
-  const key=screen+':'+i;
-  if(costsSomething(screen,rowOf(screen,i))&&armed!==key){
-    armed=key;armedT=2.2;sfx('climb');return;}
-  armed=null;press('act');}
+  if(!costsSomething(screen,rowOf(screen,i)))press('act');
+  else sfx('climb');}
 function rowOf(screen,i){
   const list=screen==='shop'?gridShopItems():screen==='skills'?skillItems()
     :screen==='camp'?campItems():screen==='loadout'?loadoutItems()
     :screen==='travel'?travelItems():screen==='over'?overItems():null;
   return list?list[i]:null;}
-function isArmed(screen,i){return armed===screen+':'+i&&armedT>0;}
+
 function menuItems(){
   const it=[];
   if(savedRun)it.push({type:'continue',label:'CONTINUE \u2014 DAY '+savedRun.day});
@@ -1646,6 +1667,12 @@ function canvasPt(ev){const r=cv.getBoundingClientRect();
 function rowAt(py,top,step,count){const i=Math.floor((py-top)/step);
   return(i>=0&&i<count)?i:-1;}
 cv.addEventListener('pointerdown',ev=>{ac();
+  if(uiBtn&&state===uiBtn.screen){
+    const pb=canvasPt(ev);
+    if(pb.x>=uiBtn.x&&pb.x<uiBtn.x+uiBtn.w&&pb.y>=uiBtn.y&&pb.y<uiBtn.y+uiBtn.h){
+      if(!uiBtn.en){sfx('deny');return;}
+      const pf=pressFor(state);if(pf)pf('act');
+      return;}}
   if(state==='shop'){
     const pt2=canvasPt(ev),items=gridShopItems(),
       pages=Math.max(1,Math.ceil(items.length/SHOP_PER)),
@@ -1702,11 +1729,6 @@ cv.addEventListener('pointerdown',ev=>{ac();
         if(pt3.x>=bz.x&&pt3.x<bz.x+bz.w&&pt3.y>=bz.y&&pt3.y<bz.y+bz.h){
           tapRow('travel',bz.row,travelSel,v=>{travelSel=v;},travelPress);
           return;}}
-      const cz=travelCardZone;
-      if(cz&&pt3.x>=cz.x&&pt3.x<cz.x+cz.w&&pt3.y>=cz.y&&pt3.y<cz.y+cz.h
-         &&items[travelSel]&&items[travelSel].type==='go'){
-        tapRow('travel',travelSel,travelSel,v=>{travelSel=v;},travelPress);
-        return;}
       return;}
     if(i<0||items[i].type==='hdr')return;
     tapRow('travel',i,travelSel,v=>{travelSel=v;},travelPress);
@@ -1791,7 +1813,7 @@ function scrY(wy){return (wy-cam.y)*cam.z+H/2;}
 let last=0;
 function loop(ts){requestAnimationFrame(loop);
   const dt=Math.min((ts-last)/1000,0.05);last=ts;frame++;
-  if(armedT>0){armedT-=dt;if(armedT<=0)armed=null;}
+  uiBtn=null;
   pollGamepad();
   try{musicTick();}catch(e){}
   /* brief freeze on heavy impacts — makes hits land */
@@ -4324,15 +4346,7 @@ function campPress(k){
   else SV.sup.food++;
   SV.sup.scrap-=c.scrap;sfx('clank');saveRun();}
 function rowDecor(screen,i,x0,y,w2,h2,nav){
-  if(isArmed(screen,i)){
-    const pu=0.5+0.5*Math.sin(frame*0.3);
-    ctx.strokeStyle='rgba(125,255,200,'+(0.45+0.4*pu)+')';
-    ctx.lineWidth=1.5;
-    ctx.strokeRect(x0+0.5,y+0.5,w2-1,h2-1);
-    ctx.textAlign='right';ctx.font='bold 7px monospace';
-    ctx.fillStyle='#7dffc8';
-    ctx.fillText('TAP AGAIN',x0+w2-4,y+h2-3);
-  }else if(nav){
+  if(nav){
     ctx.textAlign='right';ctx.font='bold 9px monospace';
     ctx.fillStyle='rgba(140,155,175,0.6)';
     ctx.fillText('\u203a',x0+w2-5,y+h2/2+3.5);}}
@@ -4373,10 +4387,15 @@ function drawCamp(){
     ctx.fillStyle=afford?'#9fff9f':'#ff8a7a';
     ctx.fillText(it.c.k==='sell'?'+$'+(SV.sup.scrap*6):it.c.scrap+' SCRAP',W-8,y);}
   const cur=items[campSel];
-  ctx.textAlign='center';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
-  ctx.fillText(cur.type==='craft'?cur.c.desc:'Scrap comes from stashes and searching the road.',W/2,H-20);
-  ctx.fillStyle='#5a6472';
-  ctx.fillText('tap to craft \u00b7 spending always asks twice',W/2,H-7);}
+  ctx.textAlign='left';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
+  const cd=cur.type==='craft'?cur.c.desc:'Scrap comes from stashes and searching the road.';
+  const cdl=wrapLines(cd,32);
+  for(let k=0;k<Math.min(cdl.length,2);k++)ctx.fillText(cdl[k],8,H-21+k*10);
+  if(cur.type==='craft'){
+    const canDo=cur.c.k==='sell'?SV.sup.scrap>0:SV.sup.scrap>=cur.c.scrap;
+    drawBtn('camp',W-106,H-25,98,19,
+      cur.c.k==='sell'?'SELL \u00b7 +$'+(SV.sup.scrap*6):'CRAFT \u00b7 '+cur.c.scrap+' SCRAP',
+      canDo);}}
 const SKILL_TOP=46,SKILL_STEP=17;
 function drawSkills(){
   ctx.fillStyle='#101318';ctx.fillRect(0,0,W,H);
@@ -4413,11 +4432,16 @@ function drawSkills(){
     ctx.fillStyle=maxed?'#7dffc8':(afford?'#9fff9f':'#ff8a7a');
     ctx.fillText(maxed?'MAX':cost+' PT'+(cost>1?'S':''),W-8,y);}
   const cur=items[skillSel];
-  ctx.textAlign='center';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
-  ctx.fillText(cur.type==='sk'?SKILLS[cur.k].desc
-    :'Points come from clearing roads \u2014 deep routes pay 3.',W/2,H-22);
-  ctx.fillStyle='#5a6472';
-  ctx.fillText('tap to buy \u00b7 spending always asks twice',W/2,H-7);}
+  ctx.textAlign='left';ctx.font='9px monospace';ctx.fillStyle='#8fa0b3';
+  const sd=cur.type==='sk'?SKILLS[cur.k].desc
+    :'Points come from clearing roads \u2014 deep routes pay 3.';
+  const sdl=wrapLines(sd,32);
+  for(let k=0;k<Math.min(sdl.length,2);k++)ctx.fillText(sdl[k],8,H-21+k*10);
+  if(cur.type==='sk'){
+    const rank2=sk(cur.k),maxed2=rank2>=SKILLS[cur.k].max,cost2=skCost(cur.k);
+    drawBtn('skills',W-106,H-25,98,19,
+      maxed2?'MAXED OUT':'LEARN \u00b7 '+cost2+' PT'+(cost2>1?'S':''),
+      !maxed2&&SV.sp>=cost2);}}
 function drawOverMenu(){
   ctx.fillStyle='rgba(5,8,12,0.94)';ctx.fillRect(0,0,W,H);
   ctx.textAlign='center';
@@ -4613,11 +4637,6 @@ function drawTravel(){
     ctx.strokeStyle=locked?'#5a6472':(sel?'#ffd76a':rd.col);
     ctx.lineWidth=sel?2:1.2;
     ctx.beginPath();ctx.arc(nx,ny,12,0,7);ctx.stroke();
-    if(isArmed('travel',row)){
-      const pu=0.5+0.5*Math.sin(frame*0.3);
-      ctx.strokeStyle='rgba(125,255,200,'+(0.4+0.45*pu)+')';
-      ctx.lineWidth=1.6;
-      ctx.beginPath();ctx.arc(nx,ny,15,0,7);ctx.stroke();}
     ctx.save();if(locked)ctx.globalAlpha=0.45;
     mapGlyph(isDrive(r.tier)?'':biomeFor(r.tier).para,isDrive(r.tier),nx,ny-1);
     ctx.restore();
@@ -4679,15 +4698,13 @@ function drawTravel(){
      ctx.fillStyle=locked?'#ff8a7a':'#8fa0b3';
      const note=locked?'The truck needs '+r.fuel+' fuel. Scavenge or craft some.':r.note;
      const nl=wrapLines(note,26);
-     for(let k=0;k<Math.min(nl.length,2);k++)ctx.fillText(nl[k],cx0+7,by+31+k*8);
-     ctx.textAlign='center';ctx.font='bold 8px monospace';
-     ctx.fillStyle=isArmed('travel',row)?'#7dffc8':(locked?'#5a6472':'#ffd76a');
-     ctx.fillText(isArmed('travel',row)?'\u25b6 TAP AGAIN TO ROLL OUT'
-       :(locked?'OUT OF FUEL':'TAP AGAIN TO ROLL OUT'),cx0+cw/2,by+bh-16);}
+     for(let k=0;k<Math.min(nl.length,1);k++)ctx.fillText(nl[k],cx0+7,by+30+k*8);
+     drawBtn('travel',cx0+6,by+bh-30,cw-12,17,
+       locked?'OUT OF FUEL':'ROLL OUT \u25b6',!locked);}
    else{ctx.textAlign='center';ctx.font='8px monospace';ctx.fillStyle='#5a6472';
      ctx.fillText('TAP A PLACE ON THE MAP',cx0+cw/2,by+(bh-10)/2+3);}}
   ctx.textAlign='center';ctx.font='7px monospace';ctx.fillStyle='#5a6472';
-  ctx.fillText('tap a place \u00b7 tap it again to travel',W/2,H-4);
+  ctx.fillText('tap a place to look \u00b7 ROLL OUT when ready',W/2,H-4);
 }
 /* ---- pixel icons for the armory rows (drawn, not loaded — keeps it 1 file) ---- */
 const SHOP_TOP=46,SHOP_STEP=21,SHOP_VISIBLE=6,ICON_W=16,ICON_H=13;
@@ -4863,13 +4880,16 @@ function drawShop(){
     :(it.type==='med'?'FIELD MEDKIT':'TOUGHER HIDE'))));
   ctx.fillText(nm2,52,py2+13);
   ctx.font='8px monospace';ctx.fillStyle='#8fa0b3';
-  ctx.fillText(shopDesc(it),52,py2+25);
-  ctx.textAlign='right';ctx.font='bold 12px monospace';
-  const afford2=SV.cash>=it.cost;
-  ctx.fillStyle=isArmed('shop',shopSel)?'#7dffc8':(afford2?'#9fff9f':'#ff8a7a');
-  ctx.fillText(isArmed('shop',shopSel)?'TAP TO BUY':'$'+it.cost,W-12,py2+ph2/2+4);
+  ctx.fillText(shopDesc(it).slice(0,34),52,py2+25);
+  const afford2=SV.cash>=it.cost,
+    full=(it.type==='ammo'&&SV.ammo[it.k]>=AMMO_CAP[it.k])
+      ||(it.type==='item'&&SV.items[it.k]>=itemMax(it.k))
+      ||(it.type==='med'&&SV.hp>=SV.maxHp);
+  drawBtn('shop',W-104,py2+ph2/2-9,92,18,
+    full?(it.type==='med'?'FULL HP':'FULL'):'BUY \u00b7 $'+it.cost,
+    afford2&&!full);
   ctx.textAlign='center';ctx.font='8px monospace';ctx.fillStyle='#5a6472';
-  ctx.fillText('tap an item \u00b7 buying always asks twice \u00b7 \u2039 back to the road',W/2,H-6);
+  ctx.fillText('tap an item to look it over \u00b7 \u2039 back to the road',W/2,H-6);
 }
 </script>
 </body>
