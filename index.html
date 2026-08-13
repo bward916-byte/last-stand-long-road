@@ -2073,7 +2073,7 @@ function loop(ts){requestAnimationFrame(loop);
   if(finisher){finisher.t-=dt;
     if(finisher.t<=0)finisher=null;else dts=dt*0.22;}
   if(hitStop>0){hitStop=Math.max(0,hitStop-dt);dts=dt*0.09;}
-  if(state==='play')update(dts);
+  if(state==='play'||demoMode)update(dts);
   render();}
 requestAnimationFrame(loop);
 
