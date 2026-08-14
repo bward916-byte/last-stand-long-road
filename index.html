@@ -77,13 +77,32 @@
 <script>
 "use strict";
 /* == LAST STAND: THE LONG ROAD — endless journey, 10 biomes, road events == */
-const W=360,H=220,BZ=1.3;
+let W=360;const H=220,BZ=1.3;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 cv.width=W;cv.height=H;ctx.imageSmoothingEnabled=false;
 const wrapEl=document.getElementById('wrap');
 const MENUBAR_H=74;let uiReserve=0,uiMode='';
-function fit(){const s=Math.min(innerWidth/W,Math.max(80,innerHeight-uiReserve)/H);
+function fit(){
+  const availW=(typeof innerWidth==='number'&&isFinite(innerWidth)&&innerWidth>0)?innerWidth:W,
+    availH=Math.max(80,((typeof innerHeight==='number'&&isFinite(innerHeight)&&innerHeight>0)?innerHeight:H)-uiReserve);
+  /* landscape phones get a wider logical viewport instead of side bars */
+  const targetW=Math.max(360,Math.min(540,Math.round(H*availW/availH)));
+  if(targetW!==W){W=targetW;cv.width=W;ctx.imageSmoothingEnabled=false;}
+  const s=Math.min(availW/W,availH/H);
   cv.style.width=(W*s|0)+'px';cv.style.height=(H*s|0)+'px';}
+/* go truly fullscreen on touch devices once the player interacts */
+let fsTried=0;
+function tryFullscreen(){
+  if(fsTried>=3||document.fullscreenElement)return;
+  const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
+  if(!coarse)return;
+  fsTried++;
+  const el=document.documentElement;
+  const req=el.requestFullscreen||el.webkitRequestFullscreen;
+  if(req)try{const r=req.call(el,{navigationUI:'hide'});
+    if(r&&r.catch)r.catch(()=>{});}catch(e){}}
+if(document.addEventListener)
+  document.addEventListener('fullscreenchange',fit);
 /* swaps the touch controls between "play" (D-pad) and "menu" (docked bar)
    and shrinks the play area so the bar can never cover the list */
 function syncTouchUI(){
@@ -92,9 +111,8 @@ function syncTouchUI(){
     ||state==='intro'||demoMode)?'menu':'play';
   if(m===uiMode)return;uiMode=m;
   document.body.classList.toggle('uimenu',m==='menu');
-  const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
-  uiReserve=(m==='menu'&&coarse)?MENUBAR_H:0;
-  wrapEl.style.bottom=uiReserve+'px';
+  uiReserve=0;
+  wrapEl.style.bottom='0px';
   fit();}
 addEventListener('resize',fit);fit();
 const lc=document.createElement('canvas');lc.width=W;lc.height=H;const lx=lc.getContext('2d');
@@ -1911,7 +1929,7 @@ function canvasPt(ev){const r=cv.getBoundingClientRect();
   return{x:(ev.clientX-r.left)*W/r.width,y:(ev.clientY-r.top)*H/r.height};}
 function rowAt(py,top,step,count){const i=Math.floor((py-top)/step);
   return(i>=0&&i<count)?i:-1;}
-cv.addEventListener('pointerdown',ev=>{ac();
+cv.addEventListener('pointerdown',ev=>{ac();tryFullscreen();
   if(demoMode){exitDemo();return;}
   menuIdleT=0;
   if(state==='intro'){
