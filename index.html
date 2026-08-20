@@ -931,7 +931,8 @@ function startLevel(n){
   P={x:lvl.start.x,f:lvl.start.f,y:gnd(lvl.start.x,lvl.start.f),vx:0,vy:0,air:false,jumpT:0,
     dir:1,hp:clamp(SV.hp,1,SV.maxHp),
     fireT:0,climb:null,anim:0,hurtT:0,hazT:0,muzzleT:0,target:null,
-    drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0,taughtCellar:0,taughtLava:0,taughtGap:0,roof:0,rclimb:null};
+    drive:!!lvl.drive,ramT:0,bounce:0,rams:0,warned1:0,warned2:0,blockT:0,taughtJump:0,taughtCellar:0,taughtLava:0,taughtGap:0,roof:0,rclimb:null,
+    rollT:0,rollCd:0,rollDir:1,taughtRoll:0};
   zombies=[];bullets=[];spits=[];cash=[];parts=[];decals=[];corpses=[];rings=[];lights=[];
   hazards=[];shake=0;flashT=0;hitStop=0;punchX=punchY=0;combo=0;comboT=0;
   turbo=0;turboT=0;lensBlood=[];finisher=null;
@@ -1426,7 +1427,7 @@ function costsSomething(screen,it){
   if(screen==='loadout')return it.type==='gear';
   if(screen==='travel')return it.type==='go';
   return false;}
-let uiBtn=null,amb={t:0,step:0};
+let uiBtn=null,amb={t:0,step:0},vigCache=null;
 let seedSalt=0,dailyMode=false,dailySnap=null,dailyDone=false,dailyRes=null,dailySel=0;
 function dailyKey(){
   const d=new Date();
@@ -2476,6 +2477,28 @@ function update(dt){
         if(!P.air&&!P.roof&&gnd(P.x,0)-P.y>3){P.air=true;P.vy=10;}
         if(!P.air&&P.roof&&roofs.length)P.y=roofs[0].y;
       }else if(relief&&P.f===0){P.y=P.roof&&roofs.length?roofs[0].y:gnd(P.x,0);}
+      /* the roll: hit the deck and come up somewhere else */
+      if(P.rollCd>0)P.rollCd-=dt;
+      if(P.rollT>0){
+        P.rollT-=dt;
+        let rx=P.x+P.rollDir*205*dt;
+        if(P.f===0&&!P.roof)rx=clampWalls(rx,P.x);
+        else if(P.f===1&&lvl.cellars&&lvl.cellars.length)rx=tunnelClamp(rx);
+        P.x=clamp(rx,8,lvl.width-8);
+        if(Math.random()<0.6)parts.push({x:P.x-P.rollDir*4,y:P.y-1,
+          vx:-P.rollDir*(20+Math.random()*30),vy:-14-Math.random()*18,
+          life:.3,c:'rgba(170,160,140,0.6)',s:1,g:1,fy:P.y+2});
+      }else if(dn&&!P.air&&!P.climb&&!P.rclimb&&!P.drive&&P.rollCd<=0
+        &&(keys['arrowleft']||keys['a']||keys['left']||keys['arrowright']||keys['d']||keys['right'])){
+        let nearHatch=false;
+        for(const L of ladders)if(Math.abs(P.x-L.x)<9)nearHatch=true;
+        for(const rf4 of roofs)for(const rx4 of [rf4.a,rf4.b])
+          if(Math.abs(P.x-rx4)<9)nearHatch=true;
+        if(!nearHatch){
+          P.rollT=0.3;P.rollCd=1.4;
+          P.rollDir=(keys['arrowleft']||keys['a']||keys['left'])?-1:1;
+          sfx('whoosh');
+          if(!P.taughtRoll){P.taughtRoll=1;itemToast('ROLL \u2014 nothing touches you');}}}
       if(up&&roofs.length&&P.f===0&&!P.roof&&!P.air&&!P.climb){
         for(const rf2 of roofs)for(const rx2 of [rf2.a,rf2.b])
           if(Math.abs(P.x-rx2)<7){P.rclimb={y:rf2.y,x:rx2};P.x=rx2;break;}}
@@ -2588,6 +2611,8 @@ function update(dt){
     /* muzzle pressed to the body: elevation can't save it */
     if(Math.abs(z.x-P.x)<14&&z.hp>0){
       P.fireT=1/wRof(wk);P.muzzleT=0.06;sfx(wp.snd);
+      parts.push({x:P.x-P.dir*2,y:P.y-10,vx:-P.dir*(30+Math.random()*40),
+        vy:-60-Math.random()*40,life:.7,c:'#d8b45a',s:1,g:1,fy:gnd(P.x,P.f)+1});
       const dmg0=wDmg(wk)*wp.pellets;
       z.hp-=dmg0;z.flash=.1;
       gore(z.x,zMid(z),z.f,-P.dir,Math.min(4,1+dmg0/14));
@@ -2595,6 +2620,8 @@ function update(dt){
       shake=Math.min(shake+0.6,2.5);
       return;}
     P.fireT=1/wRof(wk);P.muzzleT=0.06;
+    parts.push({x:P.x-P.dir*2,y:P.y-10,vx:-P.dir*(30+Math.random()*40),
+      vy:-60-Math.random()*40,life:.7,c:'#d8b45a',s:1,g:1,fy:gnd(P.x,P.f)+1});
     sfx(wp.snd);shake=Math.min(shake+0.6,2.5);
     const kick=Math.min(3.2,0.5+wp.dmg*0.06+(wp.pellets-1)*0.35);
     punchX=clamp(punchX-P.dir*kick,-5,5);punchY=clamp(punchY-kick*0.25,-5,5);
@@ -3275,6 +3302,15 @@ function deathSfx(z){
 function killZombie(z){
   if(z.dead)return;z.dead=true;
   if(!z.noCount)killsLeft--;SV.kills=(SV.kills||0)+1;troCount('kills');deathSfx(z);
+  /* what's left behind: a stain, a body, a payout */
+  {const gy5=gnd(z.x,z.f);
+   for(let q=0;q<2;q++)
+     decals.push({x:z.x+(Math.random()-0.5)*10,f:z.f,y:gy5,w:0,
+       r:2.5+Math.random()*3.5*z.scale,a:0.30+Math.random()*0.18,
+       c:Math.random()<0.8?'#5a1512':'#3d0e0c'});
+   while(decals.length>320)decals.shift();}
+  if(z.cash>0)parts.push({x:z.x,y:zTop(z)-4,vy:-22,life:.8,
+    c:'#9fff9f',s:1,txt:'+$'+z.cash});
   if(z.t==='pilgrim'){
     SV.pilgrimDead=1;trophy('hunter');
     SV.cash+=600;SV.sup.fuel+=3;SV.sup.meds+=2;
@@ -3323,10 +3359,13 @@ function killZombie(z){
     return;}
   if(z.fly)for(let q=0;q<6;q++)parts.push({x:z.x,y:z.y,vx:(Math.random()-0.5)*70,
     vy:-20-Math.random()*40,life:.6,c:'#3d2a44',s:2,g:1,fy:gnd(z.x,z.f)});
-  corpses.push({x:z.x,f:z.f,spr:z.spr,vr:z.vr,dir:z.dir,scale:z.scale,t:7,cr:z.spr==='crawler'});
+  corpses.push({x:z.x,f:z.f,spr:z.spr,vr:z.vr,dir:z.dir,scale:z.scale,t:7,
+    roof:z.roof,cr:z.spr==='crawler'});
+  while(corpses.length>36)corpses.shift();
   if(z.t==='boss'){shake=6;sfx('boom');flashT=0.2;}
 }
 function hurtPlayer(d){
+  if(P&&P.rollT>0)return;   /* mid-roll, nothing touches you */
   if(d<=0||P.hurtT>0)return;
   if(turboT>0)return;   /* untouchable mid-smash */
   if(P.air&&P.vy<40)return;   /* mid-leap, they swing under you */
@@ -3440,6 +3479,12 @@ function render(){
    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
   if(state!=='over'&&state!=='pause'){
     if(demoMode)drawDemoOverlay();else drawHUD();}
+  /* a quiet vignette pulls the eye to the middle of the road */
+  if(!vigCache||vigCache.w!==W){
+    const vg=ctx.createRadialGradient(W/2,H*0.46,H*0.44,W/2,H*0.5,W*0.66);
+    vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.30)');
+    vigCache={w:W,g:vg};}
+  ctx.fillStyle=vigCache.g;ctx.fillRect(0,0,W,H);
   if(flashT>0){ctx.fillStyle='rgba(255,255,255,'+(flashT*2)+')';ctx.fillRect(0,0,W,H);}
   if(P.hurtT>0||P.hp<SV.maxHp*0.3){
     const a=P.hurtT>0?0.35:0.12+0.08*Math.sin(frame*0.15);
@@ -3606,6 +3651,21 @@ function drawOutdoor(B){
   const sg=ctx.createLinearGradient(0,-140,0,gy);
   sg.addColorStop(0,ltng?'#8a9ac8':sky0);sg.addColorStop(1,ltng?'#a8b4d0':sky1);
   ctx.fillStyle=sg;ctx.fillRect(left,-160,right-left,gy+160);
+  /* clouds drift on clear days */
+  if(B.out&&(B.weather==='none'||B.weather==='drizzle')&&tod!=='night'){
+    const cx0=cam.x*0.85;
+    seed=(lvl.n*47)|0;
+    for(let i=0;i<4;i++){
+      const spd=0.10+rnd()*0.12,baseX=rnd()*700,
+        cxx=cx0+((baseX+frame*spd)%(W+240))-120,
+        cyy=-118+rnd()*46,scale5=0.8+rnd()*0.9,
+        al=(tod==='day'?0.11:0.07)+rnd()*0.04;
+      ctx.fillStyle='rgba(235,240,248,'+al+')';
+      ctx.beginPath();
+      ctx.ellipse(cxx,cyy,26*scale5,7*scale5,0,0,7);
+      ctx.ellipse(cxx+16*scale5,cyy+2,17*scale5,5.4*scale5,0,0,7);
+      ctx.ellipse(cxx-15*scale5,cyy+2.4,14*scale5,4.6*scale5,0,0,7);
+      ctx.fill();}}
   /* sun / moon / blood moon */
   if(B.weather==='none'||B.weather==='ash'||B.weather==='snow'||B.weather==='drizzle'){
     const sx0=cam.x*0.9;
@@ -4214,6 +4274,25 @@ function drawWorld(){
     while(by2<gy12-4){by2+=14+rnd()*10;bx2+=(rnd()-0.5)*16;ctx.lineTo(bx2,by2);}
     ctx.lineTo(bo.x,gy12);ctx.stroke();
     lights.push({x:bo.x,y:gy12-30,r:70*bo.t*3,t:.03});}
+  /* the ground remembers */
+  for(const d5 of decals){
+    if(!d5.r)continue;
+    ctx.save();ctx.globalAlpha=d5.a;
+    ctx.fillStyle=d5.c;
+    ctx.beginPath();ctx.ellipse(d5.x,d5.y+0.6,d5.r,d5.r*0.32,0,0,7);ctx.fill();
+    ctx.restore();}
+  /* the fallen */
+  for(const c5 of corpses){
+    const spr5=sprFor({spr:c5.spr,vr:c5.vr},0);
+    if(!spr5)continue;
+    const gy6=c5.roof&&roofs.length?roofs[0].y:gnd(c5.x,c5.f);
+    ctx.save();
+    ctx.globalAlpha=Math.min(0.85,c5.t/2);
+    ctx.translate(c5.x,gy6-2);
+    ctx.rotate(c5.dir*1.5708);
+    ctx.scale(c5.scale*0.95,c5.scale*0.95);
+    ctx.drawImage(spr5,-spr5.width/2,-spr5.height);
+    ctx.restore();}
   /* the dog */
   if(dog){
     const dx4=dog.x,dy4=dog.y,fr2=(dog.anim|0)%2,d2=dog.dir;
@@ -4506,6 +4585,11 @@ function drawWorld(){
   }else{const fr=P.climb?((P.anim*2|0)%2?0:2):(P.vx!==0?(P.anim*2|0)%3:1);
    const spr=SOL[fr];
    if(!P.climb)castShadow(P.x,P.air?gnd(P.x,P.f):P.y,9,15);
+   if(P.rollT>0){
+     ctx.save();
+     ctx.translate(P.x,P.y-6);
+     ctx.rotate(P.rollDir*(1-P.rollT/0.3)*6.283);
+     ctx.translate(-P.x,-(P.y-6));}
    if(turboT>0)for(let t=1;t<=3;t++){
      ctx.save();ctx.globalAlpha=0.30/t;
      ctx.translate(px(P.x-P.dir*t*7),px(P.y));
@@ -4525,7 +4609,8 @@ function drawWorld(){
    if(P.muzzleT>0){ctx.fillStyle='#fff2a0';
      ctx.fillRect(wp.blen+1,-11,3,4);ctx.fillRect(wp.blen+2,-12,1,6);
      ctx.fillStyle='rgba(255,200,80,0.7)';ctx.fillRect(wp.blen+3,-10,3,2);}
-   ctx.restore();}
+   ctx.restore();
+   if(P.rollT>0)ctx.restore();}
   for(const b of bullets){
     for(let i=0;i<b.trail.length;i++){const t=b.trail[i];
       ctx.fillStyle='rgba(255,220,140,'+(0.12*(i+1))+')';ctx.fillRect(px(t.x)-1,px(t.y),2,1);}
